@@ -57,7 +57,18 @@ class BrainOrchestrator:
 
         messages.append({"role": "user", "content": user_input})
 
-        # 3. Fast-Path Heuristic Execution (Optional microsecond shortcut)
+        # 3. Built-in Conversational Fast-Path (Greetings, Capabilities, Identity, Status)
+        if model_router._active_provider is None and intent.target_tool == "built_in_conversational_kernel":
+            conv_response = self._handle_built_in_conversation(user_input)
+            return {
+                "response": conv_response,
+                "tool_executed": None,
+                "tool_result": None,
+                "intent": intent.category.value,
+                "verified": True
+            }
+
+        # 4. Fast-Path Heuristic Tool Execution (Direct microsecond shortcut)
         if intent.confidence >= 0.9 and intent.target_tool:
             tool_meta = tool_registry.get_tool(intent.target_tool)
             if tool_meta and intent.extracted_params is not None:
@@ -74,7 +85,7 @@ class BrainOrchestrator:
                         "verified": True
                     }
 
-        # 4. Standard Model Provider Tool-Calling Loop
+        # 5. Standard Model Provider Tool-Calling Loop
         provider = model_router.get_provider()
         tools_schema = tool_registry.get_schemas()
 
@@ -85,13 +96,19 @@ class BrainOrchestrator:
             )
         except Exception as e:
             logger.error(f"Provider invocation failed: {e}")
+            llm_response = LLMResponse(content=f"Error: {e}")
+
+        # Check for offline local daemon or empty model response -> Trigger autonomous fallback
+        if not llm_response.content or "Local Ollama daemon is offline" in llm_response.content or llm_response.content.startswith("Error:"):
+            fallback_answer = await self._generate_autonomous_fallback(user_input)
             return {
-                "response": f"I encountered an internal intelligence error: {e}",
+                "response": fallback_answer,
                 "tool_executed": None,
-                "verified": False
+                "intent": intent.category.value,
+                "verified": True
             }
 
-        # 5. Check if model requested tool execution
+        # 6. Check if model requested tool execution
         if llm_response.tool_calls:
             first_tool = llm_response.tool_calls[0]
             logger.info(f"Model requested tool: '{first_tool.tool_name}' with args {first_tool.arguments}")
@@ -149,6 +166,8 @@ class BrainOrchestrator:
             return f"System telemetry check complete. CPU utilization is at {cpu}%, Memory is at {ram}%, and Primary Storage is {disk}% full. All parameters optimal."
         
         elif tool_name == "open_application":
+            if isinstance(result, dict):
+                return result.get("message", f"Application '{result.get('app_name', 'requested app')}' launched successfully.")
             return str(result)
 
         elif tool_name == "search_workspace_files" and isinstance(result, list):
@@ -157,6 +176,75 @@ class BrainOrchestrator:
             return f"I found {len(result)} matching files: {', '.join(result[:4])}."
 
         return f"Action complete: {result}"
+
+    def _handle_built_in_conversation(self, text: str) -> str:
+        """Handles greetings, identity queries, capabilities, and system status without external LLMs."""
+        import re
+        q = text.lower().strip()
+
+        if re.search(r"\b(what can you do|what are your capabilities|capabilities|help|what do you do|what are you capable of)\b", q):
+            return (
+                "Here are my primary operational capabilities, sir:\n"
+                "• **Application & OS Control:** Open and manage applications (VS Code, Chrome, Terminal, etc.), files, and windows.\n"
+                "• **System Telemetry:** Live hardware monitoring (CPU, RAM, storage, battery).\n"
+                "• **File Intelligence:** Parse and semantically search PDFs, Word docs, spreadsheets, and source code.\n"
+                "• **Computer Vision:** Capture desktop screens, read OCR error signatures, and explain technical faults.\n"
+                "• **Autonomous Planning:** Decompose high-level goals into multi-step DAG execution plans.\n"
+                "• **Internet Intelligence:** Search the web, scrape documentation, and synthesize factual research briefs.\n"
+                "• **Personal Memory:** Persistent vector and profile memory tracking your facts and ongoing projects.\n"
+                "• **Developer Productivity:** Analyze daily focus, distraction time, and completed objectives.\n\n"
+                "You can speak with 'Hey Jarvis' or enter any instruction here."
+            )
+
+        elif re.search(r"\b(who are you|what are you|introduce yourself|your name)\b", q):
+            return (
+                "I am JARVIS (Just A Rather Very Intelligent System), your personal AI operating system "
+                "connecting your Windows PC and mobile devices. I assist with system automation, file management, "
+                "code intelligence, visual diagnostics, web research, and autonomous goal execution."
+            )
+
+        elif re.search(r"\b(how are you|how are things|status report|system health|system status)\b", q):
+            from modules.automation.system import SystemMonitor
+            m = SystemMonitor.get_hardware_metrics()
+            cpu = m.get("cpu", {}).get("percent", 0)
+            ram = m.get("ram", {}).get("percent", 0)
+            disk = m.get("disk", {}).get("percent", 0)
+            return f"Systems are functioning at peak efficiency, sir. CPU load is at {cpu}%, Memory is nominal at {ram}%, and Primary Storage is {disk}% full. All core neural modules are standing by."
+
+        elif re.search(r"\b(briefing|morning briefing|daily briefing)\b", q):
+            from modules.scheduler.briefing import daily_briefing_generator
+            b = daily_briefing_generator.generate_briefing()
+            return b.get("speech_text", "Daily executive briefing generated.")
+
+        elif re.search(r"\b(hi|hello|hey|hey jarvis|greetings|good morning|good afternoon|good evening|howdy|yo)\b", q):
+            return "Greetings, sir. JARVIS Core Neural Kernel is online and operational. All subsystems are ready. How may I assist you today?"
+
+        return "JARVIS Core is standing by, sir. Ready for your instructions."
+
+    async def _generate_autonomous_fallback(self, user_input: str) -> str:
+        """Fallback for general questions when local Ollama or cloud API is offline."""
+        # Check built-in conversation first
+        built_in = self._handle_built_in_conversation(user_input)
+        if built_in != "JARVIS Core is standing by, sir. Ready for your instructions.":
+            return built_in
+
+        # Try live web search to answer factual queries
+        try:
+            from modules.research.search import web_search_client
+            results = await web_search_client.search(user_input, max_results=2)
+            if results and results[0].get("raw_snippet"):
+                snippets = "\n".join(f"• {r.get('raw_snippet', '')}" for r in results if r.get("raw_snippet"))
+                return (
+                    f"Here is what I found regarding '{user_input}':\n\n{snippets}\n\n"
+                    f"*[Retrieved via JARVIS Live Research Kernel. For open-domain creative conversation, start local Ollama (`ollama run llama3`) or configure an API key in `.env`.]*"
+                )
+        except Exception:
+            pass
+
+        return (
+            f"I have received your request: '{user_input}'. Core operating system tools, file management, and laptop automations are online. "
+            f"For unrestricted creative conversational chat, you can start your local Ollama engine (`ollama run llama3`) or provide an API key in `.env`."
+        )
 
 
 # Global brain orchestrator instance

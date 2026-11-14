@@ -189,25 +189,11 @@ def tool_read_file_content(file_path: str, max_lines: int = 100) -> str:
 
 @jarvis_tool(name="open_application", description="Launch an authorized application or website by name.", permission_level=2)
 def tool_open_application(app_name: str) -> str:
-    cleaned = app_name.lower().strip()
-    # Common app URI schemes & commands
-    app_mappings = {
-        "vs code": "code",
-        "vscode": "code",
-        "chrome": "start chrome",
-        "notepad": "notepad",
-        "calculator": "calc",
-        "terminal": "start wt",
-        "explorer": "explorer",
-        "spotify": "start spotify:"
-    }
-
-    cmd = app_mappings.get(cleaned, cleaned)
-    try:
-        subprocess.Popen(cmd, shell=True)
-        return f"Application '{app_name}' launched successfully."
-    except Exception as e:
-        return f"Failed to launch '{app_name}': {e}"
+    from modules.automation.apps import ApplicationManager
+    res = ApplicationManager.launch(app_name)
+    if res.get("success"):
+        return res.get("message", f"Application '{app_name}' launched successfully.")
+    return f"Failed to launch '{app_name}': {res.get('error', 'unknown error')}"
 
 
 @jarvis_tool(name="execute_shell_command", description="Run an approved PowerShell or terminal command.", permission_level=3)

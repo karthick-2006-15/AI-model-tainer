@@ -26,6 +26,13 @@ class IntentClassification:
 
 
 class IntentClassifier:
+    GREETING_PATTERNS = [
+        r"^(?:hi|hello|hey|hey\s+jarvis|greetings|good\s+(?:morning|afternoon|evening|day)|yo|howdy)[!.]*$",
+        r"^(?:who\s+are\s+you|what\s+are\s+you|introduce\s+yourself)[?.]*$",
+        r"^(?:what\s+can\s+you\s+do|what\s+are\s+your\s+capabilities|help|list\s+capabilities)[?.]*$",
+        r"^(?:how\s+are\s+you|how\s+are\s+things|status\s+report|system\s+status)[?.]*$",
+        r"\b(?:give\s+me\s+my\s+briefing|daily\s+briefing|morning\s+briefing)\b"
+    ]
     APP_LAUNCH_PATTERNS = [
         r"(?:open|launch|start|run)\s+(?:the\s+)?([a-zA-Z0-9_\-\s]+)",
     ]
@@ -47,6 +54,17 @@ class IntentClassifier:
     def classify(self, text: str) -> IntentClassification:
         cleaned = text.lower().strip()
         params: Dict[str, Any] = {}
+
+        # 0. Greetings & Core Conversational Queries Check
+        for p in self.GREETING_PATTERNS:
+            if re.search(p, cleaned):
+                params["query"] = cleaned
+                return IntentClassification(
+                    category=IntentCategory.CONVERSATIONAL,
+                    confidence=0.98,
+                    target_tool="built_in_conversational_kernel",
+                    extracted_params=params
+                )
 
         # 1. System Metrics Check
         for p in self.SYSTEM_METRIC_PATTERNS:
