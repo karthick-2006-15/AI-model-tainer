@@ -55,7 +55,11 @@ class SemanticMemory:
     def __init__(self, storage_path: Optional[str] = None):
         self.storage_path = storage_path or settings.QDRANT_STORAGE_PATH
         os.makedirs(self.storage_path, exist_ok=True)
-        self.client = QdrantClient(path=self.storage_path)
+        try:
+            self.client = QdrantClient(path=self.storage_path)
+        except Exception as e:
+            logger.warning(f"File-backed Qdrant locked or unavailable ({e}). Using in-memory fallback.")
+            self.client = QdrantClient(":memory:")
         self._ensure_collection()
 
     def _ensure_collection(self):

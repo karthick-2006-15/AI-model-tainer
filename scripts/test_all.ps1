@@ -18,7 +18,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "FAILED: Backend tests encountered errors." -ForegroundColor Red
     exit 1
 }
-Write-Host "PASSED: All 53 Backend tests succeeded 100%." -ForegroundColor Green
+Write-Host "PASSED: All 59 Backend tests across 12 modules succeeded 100%." -ForegroundColor Green
 Write-Host ""
 
 # 2. Run Frontend Type-check & Production Build

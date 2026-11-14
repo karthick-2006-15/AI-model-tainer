@@ -310,3 +310,27 @@ def tool_schedule_periodic_task(name: str, interval_seconds: int, action_type: s
     job = scheduler_engine.add_job(name=name, interval_seconds=interval_seconds, action_type=action_type)
     return job.model_dump()
 
+
+@jarvis_tool(name="open_vscode_project", description="Open a specific workspace folder or project path in Visual Studio Code.", permission_level=2)
+async def tool_open_vscode_project(project_path: str = ".") -> Dict[str, Any]:
+    from modules.integrations.vscode import vscode_integration
+    return await vscode_integration.execute("open_workspace", {"path": project_path})
+
+
+@jarvis_tool(name="inspect_git_status", description="Inspect the active Git repository branch, working tree changes, and recent commits.", permission_level=1)
+async def tool_inspect_git_status(path: str = ".") -> Dict[str, Any]:
+    from modules.integrations.github import github_integration
+    return await github_integration.execute("repo_summary", {"path": path})
+
+
+@jarvis_tool(name="control_spotify_media", description="Control media playback on Spotify or system (play_pause, next, previous, volume_up, volume_down, mute, search_play).", permission_level=1)
+async def tool_control_spotify_media(action: str = "play_pause", query: str = "") -> Dict[str, Any]:
+    from modules.integrations.spotify import spotify_integration
+    return await spotify_integration.execute(action, {"query": query})
+
+
+@jarvis_tool(name="analyze_daily_productivity", description="Compute personal daily developer productivity score, flow analysis, and objective fulfillment report.", permission_level=1)
+def tool_analyze_daily_productivity() -> Dict[str, Any]:
+    from modules.integrations.productivity import productivity_analyzer
+    return productivity_analyzer.analyze_daily_productivity()
+

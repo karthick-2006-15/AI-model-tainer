@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from core.config.settings import settings
 from storage.db.connection import init_db
-from api.routers import system, sessions, voice, chat, memory, automation, files, mobile, research, tasks, vision, scheduler
+from api.routers import system, sessions, voice, chat, memory, automation, files, mobile, research, tasks, vision, scheduler, integrations
 from api.websockets import hud_stream, audio_stream
 from modules.mobile import bridge as mobile_bridge
 import logging
@@ -62,6 +62,7 @@ app.include_router(research.router)
 app.include_router(tasks.router)
 app.include_router(vision.router)
 app.include_router(scheduler.router)
+app.include_router(integrations.router)
 
 # Mount WebSocket routers
 app.include_router(hud_stream.router)
