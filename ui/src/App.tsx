@@ -17,9 +17,10 @@ export function App() {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // Determine WebSocket URL based on current host
+    // Determine WebSocket URL based on current host (direct to 8000 in dev mode)
+    const isDev = window.location.port === '5173';
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
+    const host = isDev ? '127.0.0.1:8000' : window.location.host;
     const wsUrl = `${protocol}//${host}/ws/hud`;
 
     let socket: WebSocket;
@@ -40,8 +41,9 @@ export function App() {
         reconnectTimer = window.setTimeout(connect, 2000);
       };
 
-      socket.onerror = (err) => {
-        console.error('WebSocket Error:', err);
+      socket.onerror = () => {
+        // Quiet retry during initial boot or reconnection
+        console.warn('JARVIS HUD WebSocket reconnecting...');
         socket.close();
       };
 
@@ -55,7 +57,7 @@ export function App() {
             if (data.message) setStatusMessage(data.message);
           } else if (data.type === 'token_chunk') {
             const botMsg: ChatMessage = {
-              id: Date.now().toString(),
+              id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
               sender: 'jarvis',
               content: data.chunk,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -63,7 +65,7 @@ export function App() {
             setMessages((prev) => [...prev, botMsg]);
           }
         } catch (e) {
-          console.error('Failed to parse WebSocket message:', e);
+          console.warn('Failed to parse WebSocket message:', e);
         }
       };
     };
@@ -78,7 +80,7 @@ export function App() {
 
   const handleSendMessage = (text: string) => {
     const userMsg: ChatMessage = {
-      id: Date.now().toString(),
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       sender: 'user',
       content: text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -96,7 +98,7 @@ export function App() {
         setMessages((prev) => [
           ...prev,
           {
-            id: (Date.now() + 1).toString(),
+            id: `${Date.now()}_sys_${Math.random().toString(36).slice(2, 9)}`,
             sender: 'system',
             content: 'WebSocket offline. Action queued for transmission.',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })

@@ -6,7 +6,7 @@ import pytest
 import os
 import shutil
 import tempfile
-from starlette.testclient import TestClient
+from fastapi.testclient import TestClient
 from api.main import app
 from modules.automation.apps import ApplicationManager
 from modules.automation.shell import shell_sandbox
