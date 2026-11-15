@@ -50,6 +50,7 @@ class TTSEngine:
                 if "david" in v.name.lower():
                     engine.setProperty("voice", v.id)
                     break
+            self._offline_engine = engine
         except Exception as e:
             logger.error(f"Failed to initialize SAPI5 speech worker: {e}")
             return
@@ -65,6 +66,16 @@ class TTSEngine:
                 logger.warning(f"Error during speech vocalization: {e}")
             finally:
                 self._speech_queue.task_done()
+
+    def stop(self):
+        """Instantly halts any active audio playback for seamless barge-in interruption."""
+        try:
+            with self._speech_queue.mutex:
+                self._speech_queue.queue.clear()
+            if self._offline_engine:
+                self._offline_engine.stop()
+        except Exception as e:
+            logger.debug(f"Audio stop note: {e}")
 
     @staticmethod
     def clean_for_speech(text: str) -> str:
@@ -153,3 +164,10 @@ class TTSEngine:
 
 # Global singleton instance
 tts_engine = TTSEngine()
+
+# Register interruption callback for instantaneous acoustic barge-in
+try:
+    from modules.voice.duplex import duplex_controller
+    duplex_controller.register_interruption_handler(tts_engine.stop)
+except Exception:
+    pass

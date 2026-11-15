@@ -31,6 +31,8 @@ class IntentClassifier:
         r"^(?:who\s+are\s+you|what\s+are\s+you|introduce\s+yourself)[?.]*$",
         r"^(?:what\s+can\s+you\s+do|what\s+are\s+your\s+capabilities|help|list\s+capabilities)[?.]*$",
         r"^(?:how\s+are\s+you|how\s+are\s+things|status\s+report|system\s+status)[?.]*$",
+        r"\b(?:what\s+time\s+is\s+it|current\s+time|tell\s+me\s+the\s+time|what\s+is\s+the\s+time|time\s+now|time)\b",
+        r"\b(?:what\s+is\s+today's\s+date|what's\s+the\s+date|today's\s+date|what\s+date\s+is\s+it|what\s+day\s+is\s+it)\b",
         r"\b(?:give\s+me\s+my\s+briefing|daily\s+briefing|morning\s+briefing)\b"
     ]
     EMERGENCY_STOP_PATTERNS = [

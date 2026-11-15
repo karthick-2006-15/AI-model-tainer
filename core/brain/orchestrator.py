@@ -297,6 +297,16 @@ class BrainOrchestrator:
                 "code intelligence, visual diagnostics, web research, and autonomous goal execution."
             )
 
+        elif re.search(r"\b(what time is it|current time|what is the time|tell me the time|time now|time)\b", q):
+            from datetime import datetime
+            now_str = datetime.now().strftime("%I:%M %p")
+            return f"The current time is {now_str}, sir."
+
+        elif re.search(r"\b(what is today's date|current date|what's the date|today's date|what date is it|what day is it)\b", q):
+            from datetime import datetime
+            date_str = datetime.now().strftime("%A, %B %d, %Y")
+            return f"Today is {date_str}, sir."
+
         elif re.search(r"\b(how are you|how are things|status report|system health|system status)\b", q):
             from modules.automation.system import SystemMonitor
             m = SystemMonitor.get_hardware_metrics()

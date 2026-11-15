@@ -1,6 +1,6 @@
 {
-  "timestamp": 1794760348.985355,
-  "count": 341,
+  "timestamp": 1794760705.9022026,
+  "count": 342,
   "apps": [
     {
       "id": "windows_settings",
@@ -3898,8 +3898,8 @@
         "communication"
       ],
       "last_launch_status": {
-        "last_launch": 1794760348.985355,
-        "success_count": 2,
+        "last_launch": null,
+        "success_count": 0,
         "failure_count": 0
       }
     },
@@ -4430,6 +4430,28 @@
       "install_location": "C:\\Users\\karth\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Accessibility",
       "executable_path": null,
       "description": "Start Menu shortcut for VoiceAccess",
+      "categories": [
+        "general"
+      ],
+      "last_launch_status": {
+        "last_launch": null,
+        "success_count": 0,
+        "failure_count": 0
+      }
+    },
+    {
+      "id": "jarvis_always_on",
+      "name": "JARVIS_Always_On",
+      "aliases": [
+        "jarvis_always_on"
+      ],
+      "target": "C:\\Users\\karth\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\JARVIS_Always_On.lnk",
+      "app_type": "win32",
+      "launch_method": "shortcut",
+      "source": "start_menu",
+      "install_location": "C:\\Users\\karth\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
+      "executable_path": null,
+      "description": "Start Menu shortcut for JARVIS_Always_On",
       "categories": [
         "general"
       ],

@@ -29,7 +29,8 @@ class VoiceListener:
         self._recognizer = sr.Recognizer()
         self._recognizer.energy_threshold = 250
         self._recognizer.dynamic_energy_threshold = True
-        self._recognizer.pause_threshold = 0.8
+        self._recognizer.pause_threshold = 0.6
+        self._recognizer.non_speaking_duration = 0.35
         self._event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.on_command_callbacks = []
 
