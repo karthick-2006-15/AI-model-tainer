@@ -6,7 +6,7 @@ pydantic-settings>=2.2.0
 websockets>=12.0
 httpx>=0.27.0
 
-# Database & Storage
+# Database & Vector Storage
 sqlalchemy>=2.0.28
 aiosqlite>=0.20.0
 qdrant-client>=1.8.0
@@ -14,7 +14,26 @@ qdrant-client>=1.8.0
 # System Automation & Telemetry
 psutil>=5.9.8
 pywin32>=306
+pyautogui>=0.9.54
 
-# Testing
+# Computer Vision & OCR
+Pillow>=10.0.0
+pytesseract>=0.3.10
+
+# Document & File Intelligence
+python-docx>=1.1.0
+pypdf>=4.0.0
+openpyxl>=3.1.2
+python-pptx>=0.6.23
+
+# Internet Intelligence & Scraping
+beautifulsoup4>=4.12.3
+
+# Voice & Speech Engine
+SpeechRecognition>=3.10.0
+pyttsx3>=2.90
+edge-tts>=6.1.10
+
+# Testing & Dev
 pytest>=8.1.0
 pytest-asyncio>=0.23.0

@@ -17,11 +17,12 @@ export function App() {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // Determine WebSocket URL based on current host (direct to 8000 in dev mode)
+    // Determine WebSocket URL from env or current host (direct to 8000 in dev mode)
+    const envWs = import.meta.env.VITE_WS_URL;
     const isDev = window.location.port === '5173';
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = isDev ? '127.0.0.1:8000' : window.location.host;
-    const wsUrl = `${protocol}//${host}/ws/hud`;
+    const wsUrl = envWs ? `${envWs}/ws/hud` : `${protocol}//${host}/ws/hud`;
 
     let socket: WebSocket;
     let reconnectTimer: number;
