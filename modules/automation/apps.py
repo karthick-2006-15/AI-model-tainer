@@ -45,6 +45,13 @@ class ApplicationManager:
             shutil.which("code.cmd"),
             shutil.which("code")
         ],
+        "visual studio code": [
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe"),
+            r"C:\Program Files\Microsoft VS Code\Code.exe",
+            r"C:\Program Files (x86)\Microsoft VS Code\Code.exe",
+            shutil.which("code.cmd"),
+            shutil.which("code")
+        ],
         "chrome": [
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
             r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
@@ -56,6 +63,11 @@ class ApplicationManager:
             r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
             os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
             shutil.which("chrome")
+        ],
+        "browser": [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            "msedge.exe"
         ],
         "edge": [
             r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -73,13 +85,20 @@ class ApplicationManager:
         "powershell": ["powershell.exe"],
         "cmd": ["cmd.exe"],
         "explorer": ["explorer.exe"],
+        "file explorer": ["explorer.exe"],
+        "files": ["explorer.exe"],
         "spotify": ["spotify:"]
     }
 
     @classmethod
     def launch(cls, app_name: str, args: Optional[str] = None) -> Dict[str, Any]:
         """Launches an application interactively using Windows ShellExecute or binary path."""
+        import re
+        import shlex
         clean_name = app_name.lower().strip()
+        # Strip trailing conversational terms like 'window', 'in window', 'app', 'application'
+        clean_name = re.sub(r"\s+(?:in\s+window|window|app|application)$", "", clean_name).strip()
+
         candidates = cls.KNOWN_APP_CANDIDATES.get(clean_name, [clean_name])
 
         target = None
@@ -97,20 +116,50 @@ class ApplicationManager:
         if not target:
             target = clean_name
 
+        # If launching VS Code without explicit arguments, default to the current workspace or --new-window
+        effective_args = args
+        if not effective_args and clean_name in ("vs code", "vscode", "code", "visual studio code"):
+            cwd = os.getcwd()
+            if os.path.isdir(cwd):
+                effective_args = f'"{cwd}"'
+            else:
+                effective_args = "--new-window"
+
         try:
             if os.name == "nt":
-                if args:
-                    subprocess.Popen(f'start "" "{target}" {args}', shell=True)
-                else:
-                    try:
+                launched = False
+
+                # Method 1: os.startfile (ShellExecuteW - preferred on Windows for full interactive desktop session)
+                try:
+                    if effective_args:
+                        os.startfile(target, "open", arguments=effective_args)
+                    else:
                         os.startfile(target)
-                    except Exception:
-                        subprocess.Popen(f'start "" "{target}"', shell=True)
+                    launched = True
+                except Exception as ex_start:
+                    logger.warning(f"os.startfile failed for '{target}': {ex_start}. Trying process fallback.")
+
+                # Method 2: Direct subprocess with detached process flags or explorer fallback
+                if not launched:
+                    try:
+                        if target.endswith(".exe") or shutil.which(target):
+                            cmd_list = [target]
+                            if effective_args:
+                                cmd_list.extend(shlex.split(effective_args))
+                            subprocess.Popen(cmd_list, creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+                            launched = True
+                        else:
+                            subprocess.Popen(["explorer.exe", target])
+                            launched = True
+                    except Exception as ex_sub:
+                        logger.warning(f"subprocess fallback failed for '{target}': {ex_sub}. Trying explorer.")
+                        subprocess.Popen(["explorer.exe", target])
+                        launched = True
             else:
-                cmd_list = [target] + ([args] if args else [])
+                cmd_list = [target] + ([effective_args] if effective_args else [])
                 subprocess.Popen(cmd_list)
 
-            logger.info(f"Launched application '{app_name}' via target '{target}'")
+            logger.info(f"Launched application '{app_name}' via target '{target}' (args: {effective_args})")
             return {
                 "success": True,
                 "app_name": app_name,
