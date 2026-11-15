@@ -9,8 +9,8 @@ from typing import Tuple, Optional
 
 class WakeWordDetector:
     DEFAULT_WAKE_PATTERNS = [
-        r"\b(?:hey|hi|hello|ok|okay)?\s*jarvis\b",
-        r"\bjarvis\b",
+        r"\b(?:hey|hi|hello|ok|okay)?\s*(?:jarvis|javis|jarves|jaavis|charvis|travis|service)\b",
+        r"\b(?:jarvis|javis|jarves|jaavis)\b",
     ]
 
     def __init__(self, wake_word: str = "hey jarvis", sensitivity: float = 0.5):

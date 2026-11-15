@@ -6,7 +6,7 @@ import { ChatFeed } from './components/ChatFeed';
 import { MemoryExplorer } from './components/MemoryExplorer';
 import { TaskManagerHUD } from './components/TaskManagerHUD';
 import { AgentStateType, TelemetryData, ChatMessage } from './types/hud';
-import { ShieldCheck, Wifi, WifiOff } from 'lucide-react';
+import { ShieldCheck, Wifi, WifiOff, Volume2, VolumeX } from 'lucide-react';
 
 export function App() {
   const [activeTab, setActiveTab] = useState('hud');
@@ -15,7 +15,43 @@ export function App() {
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [voiceOutputEnabled, setVoiceOutputEnabled] = useState(true);
+  const [isListening, setIsListening] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Helper to vocalize responses directly in the browser via SpeechSynthesis
+  const speakVoice = (text: string) => {
+    if (!voiceOutputEnabled || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const clean = text
+        .replace(/\[Voice Instruction:.*?\]/gs, '')
+        .replace(/[*_#`~]/g, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/https?:\/\/\S+/g, '')
+        .replace(/^[ \t]*[•\-\*][ \t]+/gm, '')
+        .trim();
+      if (!clean) return;
+
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(
+        (v) =>
+          v.lang.startsWith('en') &&
+          (v.name.includes('Natural') ||
+            v.name.includes('Google') ||
+            v.name.includes('David') ||
+            v.name.includes('Microsoft'))
+      );
+      if (preferred) utterance.voice = preferred;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Speech synthesis note:', e);
+    }
+  };
 
   useEffect(() => {
     let isDisposed = false;
@@ -77,6 +113,7 @@ export function App() {
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
               };
               setMessages((prev) => [...prev, botMsg]);
+              speakVoice(data.chunk);
             }
           } catch (e) {
             // Silently drop invalid packets
@@ -136,6 +173,90 @@ export function App() {
     }
   };
 
+  const toggleVoiceRecognition = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert(
+        'Voice input is supported in Google Chrome, Microsoft Edge, and Chromium-based browsers. Please ensure microphone permissions are allowed in your browser settings.'
+      );
+      return;
+    }
+
+    if (isListening) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (_) {}
+      }
+      setIsListening(false);
+      setAgentState('idle');
+      setStatusMessage('Voice recognition paused.');
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setAgentState('listening');
+        setStatusMessage('Listening to your voice... Speak your command.');
+      };
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        if (finalTranscript.trim()) {
+          setStatusMessage(`Understood: "${finalTranscript.trim()}"`);
+          handleSendMessage(finalTranscript.trim());
+          setIsListening(false);
+          setAgentState('thinking');
+        } else if (interimTranscript) {
+          setStatusMessage(`Hearing: "${interimTranscript}"`);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition warning:', event.error);
+        setIsListening(false);
+        setAgentState('idle');
+        if (event.error === 'not-allowed') {
+          setStatusMessage(
+            'Microphone access blocked. Click the lock/tune icon in your browser address bar to allow microphone.'
+          );
+        } else {
+          setStatusMessage('Microphone idle. Click to speak.');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setAgentState((prev) => (prev === 'listening' ? 'idle' : prev));
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to start voice recognition:', err);
+      setIsListening(false);
+      setAgentState('idle');
+    }
+  };
+
   const handleEmergencyStop = () => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
@@ -172,6 +293,25 @@ export function App() {
           </div>
 
           <div className="flex items-center space-x-4">
+            {/* Voice Audio Feedback Toggle */}
+            <button
+              onClick={() => setVoiceOutputEnabled(!voiceOutputEnabled)}
+              title={voiceOutputEnabled ? "Voice Output Active (Click to Mute)" : "Voice Output Muted (Click to Unmute)"}
+              className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-[#08152e] border border-cyan-800/40 text-[11px] text-cyan-300 hover:border-cyan-400 transition"
+            >
+              {voiceOutputEnabled ? (
+                <>
+                  <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>VOICE: ON</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+                  <span>VOICE: MUTED</span>
+                </>
+              )}
+            </button>
+
             <div className="flex items-center space-x-2 text-xs">
               {isConnected ? (
                 <span className="flex items-center space-x-1.5 text-emerald-400 font-mono text-[11px]">
@@ -210,17 +350,14 @@ export function App() {
                 <CoreArcReactor 
                   state={agentState} 
                   statusMessage={statusMessage}
-                  onMicClick={() => {
-                    setAgentState(agentState === 'listening' ? 'idle' : 'listening');
-                    setStatusMessage(agentState === 'listening' ? 'Standing by.' : 'Listening for audio instruction...');
-                  }}
+                  onMicClick={toggleVoiceRecognition}
                 />
               </div>
 
               {/* Quick Status Bar */}
               <div className="border-t border-cyan-500/10 pt-3 flex justify-between items-center text-[11px] text-slate-400">
-                <span>Wake-word: "Hey Jarvis"</span>
-                <span className="text-cyan-300">FastAPI + AsyncIO + WebSockets</span>
+                <span>Wake-word: "Hey Jarvis" (or click Arc Reactor / Mic button)</span>
+                <span className="text-cyan-300">FastAPI + Speech Engine + WebSockets</span>
               </div>
             </div>
 
@@ -236,6 +373,8 @@ export function App() {
                 <ChatFeed 
                   messages={messages} 
                   onSendMessage={handleSendMessage} 
+                  onToggleMic={toggleVoiceRecognition}
+                  isListening={isListening}
                 />
               </div>
             </div>

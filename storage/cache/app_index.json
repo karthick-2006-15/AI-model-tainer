@@ -1,5 +1,5 @@
 {
-  "timestamp": 1794759722.653265,
+  "timestamp": 1794760348.985355,
   "count": 341,
   "apps": [
     {
@@ -3898,8 +3898,8 @@
         "communication"
       ],
       "last_launch_status": {
-        "last_launch": null,
-        "success_count": 0,
+        "last_launch": 1794760348.985355,
+        "success_count": 2,
         "failure_count": 0
       }
     },

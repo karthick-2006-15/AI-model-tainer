@@ -1,14 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from '../types/hud';
-import { Send, Terminal, Bot, User, Sparkles } from 'lucide-react';
+import { Send, Terminal, Bot, User, Sparkles, Mic, MicOff } from 'lucide-react';
 
 interface Props {
   messages: ChatMessage[];
   onSendMessage: (text: string) => void;
   isStreaming?: boolean;
+  onToggleMic?: () => void;
+  isListening?: boolean;
 }
 
-export const ChatFeed: React.FC<Props> = ({ messages, onSendMessage, isStreaming }) => {
+export const ChatFeed: React.FC<Props> = ({ 
+  messages, 
+  onSendMessage, 
+  isStreaming,
+  onToggleMic,
+  isListening = false
+}) => {
   const [inputText, setInputText] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -119,6 +127,24 @@ export const ChatFeed: React.FC<Props> = ({ messages, onSendMessage, isStreaming
           placeholder="Command JARVIS (e.g. 'Open VS Code', 'Organize downloads')..."
           className="flex-1 bg-[#020617] border border-cyan-800/50 rounded-lg px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition"
         />
+        {onToggleMic && (
+          <button
+            type="button"
+            onClick={onToggleMic}
+            title={isListening ? "Listening... Click to cancel" : "Click to speak with voice"}
+            className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-center transition border ${
+              isListening
+                ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 animate-pulse shadow-[0_0_12px_#10b981]'
+                : 'bg-cyan-950/60 border-cyan-700/60 text-cyan-300 hover:bg-cyan-900/60 hover:border-cyan-400'
+            }`}
+          >
+            {isListening ? (
+              <MicOff className="w-4 h-4 text-emerald-400 animate-bounce" />
+            ) : (
+              <Mic className="w-4 h-4 text-cyan-400" />
+            )}
+          </button>
+        )}
         <button 
           type="submit"
           className="bg-cyan-600 hover:bg-cyan-500 text-white px-3.5 py-2 rounded-lg text-xs font-hud font-semibold flex items-center space-x-1.5 shadow-md shadow-cyan-600/30 transition"
