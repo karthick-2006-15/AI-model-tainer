@@ -129,7 +129,19 @@ class ApplicationManager:
             if os.name == "nt":
                 launched = False
 
-                # Method 1: Interactive Desktop Bridge via Windows Task Scheduler (Guarantees display on WinSta0\Default)
+                # Check if application window is already running and bring it to foreground
+                if clean_name in ("vs code", "vscode", "code", "visual studio code"):
+                    if cls.focus_window("Visual Studio Code") or cls.focus_window("Code"):
+                        logger.info(f"VS Code already open. Brought to foreground.")
+                        return {
+                            "success": True,
+                            "app_name": app_name,
+                            "target": target,
+                            "message": f"Application '{app_name}' focused successfully."
+                        }
+
+                # Method 1: Interactive Desktop Bridge via Windows Task Scheduler XML
+                # Explicitly allows execution on battery power (DisallowStartIfOnBatteries=false) and in interactive session
                 if target.endswith(".exe") or (shutil.which(target) and not target.endswith(":")):
                     launched = cls._launch_interactive_desktop(target, effective_args)
 
@@ -181,31 +193,63 @@ class ApplicationManager:
     @classmethod
     def _launch_interactive_desktop(cls, target: str, args: Optional[str] = None) -> bool:
         """Launches an application directly onto the interactive user desktop (WinSta0\\Default).
-        Uses Windows Task Scheduler to bridge across session, sandbox, and desktop station boundaries.
+        Uses Windows Task Scheduler XML to bridge session boundaries and explicitly allow battery execution.
         """
-        import uuid
-        task_name = f"JARVIS_Launch_{uuid.uuid4().hex[:8]}"
-        cmd = f'"{target}"'
-        if args:
-            cmd += f" {args}"
+        import tempfile
+        task_name = "JARVIS_Interactive_Bridge"
+        cwd = os.getcwd()
+        arg_xml = f"<Arguments>{args}</Arguments>" if args else "<Arguments/>"
 
+        xml_content = f"""<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Author>JARVIS</Author>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <MultipleInstancesPolicy>Parallel</MultipleInstancesPolicy>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>{target}</Command>
+      {arg_xml}
+      <WorkingDirectory>{cwd}</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+"""
+        xml_path = None
         try:
-            # 1. Register ephemeral single-run task in active user desktop session
-            create_cmd = ["schtasks", "/create", "/tn", task_name, "/tr", cmd, "/sc", "once", "/st", "00:00", "/f"]
-            res_create = subprocess.run(create_cmd, capture_output=True, text=True)
+            with tempfile.NamedTemporaryFile("w", encoding="utf-16", suffix=".xml", delete=False) as f:
+                f.write(xml_content)
+                xml_path = f.name
+
+            # 1. Register task with battery and interactive token permissions
+            res_create = subprocess.run(["schtasks", "/create", "/tn", task_name, "/xml", xml_path, "/f"], capture_output=True, text=True)
             if res_create.returncode != 0:
                 logger.warning(f"Failed to create interactive task: {res_create.stderr}")
                 return False
 
-            # 2. Run immediately in the user's interactive desktop session
+            # 2. Run task in the user's interactive session
             res_run = subprocess.run(["schtasks", "/run", "/tn", task_name], capture_output=True, text=True)
-
-            # 3. Clean up the ephemeral task registration
-            subprocess.run(["schtasks", "/delete", "/tn", task_name, "/f"], capture_output=True)
             return res_run.returncode == 0
         except Exception as e:
             logger.warning(f"_launch_interactive_desktop exception: {e}")
             return False
+        finally:
+            if xml_path and os.path.exists(xml_path):
+                try:
+                    os.remove(xml_path)
+                except Exception:
+                    pass
 
     @classmethod
     def close(cls, app_name: str, force: bool = False) -> Dict[str, Any]:
@@ -235,10 +279,23 @@ class ApplicationManager:
 
     @classmethod
     def list_open_windows(cls) -> List[Dict[str, Any]]:
-        """Returns all visible desktop application windows."""
+        """Returns all visible desktop application windows across the interactive user desktop."""
         windows = []
         if not PYWIN32_AVAILABLE:
             return windows
+
+        # Ensure calling thread is attached to the interactive desktop (WinSta0\Default)
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            h_winsta = user32.OpenWindowStationW("WinSta0", False, 0x037F)
+            if h_winsta:
+                user32.SetProcessWindowStation(h_winsta)
+            h_desk = user32.OpenDesktopW("Default", 0, False, 0x01FF)
+            if h_desk:
+                user32.SetThreadDesktop(h_desk)
+        except Exception:
+            pass
 
         def enum_windows_callback(hwnd, _):
             if win32gui.IsWindowVisible(hwnd):
