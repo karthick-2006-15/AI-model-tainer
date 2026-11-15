@@ -17,65 +17,91 @@ export function App() {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // Determine WebSocket URL from env or current host (direct to 8000 in dev mode)
-    const envWs = import.meta.env.VITE_WS_URL;
-    const isDev = window.location.port === '5173';
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = isDev ? '127.0.0.1:8000' : window.location.host;
-    const wsUrl = envWs ? `${envWs}/ws/hud` : `${protocol}//${host}/ws/hud`;
+    let isDisposed = false;
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number | undefined;
 
-    let socket: WebSocket;
-    let reconnectTimer: number;
+    // Use Vite proxy (/ws/hud) or explicit environment variable
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const envWs = import.meta.env.VITE_WS_URL;
+    const wsUrl = envWs 
+      ? `${envWs}/ws/hud`
+      : `${protocol}//${window.location.host}/ws/hud`;
 
     const connect = () => {
-      socket = new WebSocket(wsUrl);
-      wsRef.current = socket;
+      if (isDisposed) return;
 
-      socket.onopen = () => {
-        setIsConnected(true);
-        setStatusMessage('Connected to JARVIS Core.');
-      };
+      try {
+        socket = new WebSocket(wsUrl);
+        wsRef.current = socket;
 
-      socket.onclose = () => {
-        setIsConnected(false);
-        setStatusMessage('Connection lost. Reconnecting...');
-        reconnectTimer = window.setTimeout(connect, 2000);
-      };
-
-      socket.onerror = () => {
-        // Quiet retry during initial boot or reconnection
-        console.warn('JARVIS HUD WebSocket reconnecting...');
-        socket.close();
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'telemetry') {
-            setTelemetry(data.data);
-          } else if (data.type === 'agent_state') {
-            setAgentState(data.state);
-            if (data.message) setStatusMessage(data.message);
-          } else if (data.type === 'token_chunk') {
-            const botMsg: ChatMessage = {
-              id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-              sender: 'jarvis',
-              content: data.chunk,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            };
-            setMessages((prev) => [...prev, botMsg]);
+        socket.onopen = () => {
+          if (isDisposed) {
+            socket?.close(1000, 'Unmounted');
+            return;
           }
-        } catch (e) {
-          console.warn('Failed to parse WebSocket message:', e);
+          setIsConnected(true);
+          setStatusMessage('Connected to JARVIS Core.');
+        };
+
+        socket.onclose = (event) => {
+          if (isDisposed) return;
+          setIsConnected(false);
+          // Only reconnect if disconnection was unexpected
+          if (event.code !== 1000) {
+            setStatusMessage('Connection lost. Reconnecting...');
+            reconnectTimer = window.setTimeout(connect, 2500);
+          }
+        };
+
+        socket.onerror = () => {
+          if (isDisposed) return;
+          // Cleanly handle reconnect through onclose without noisy logs
+        };
+
+        socket.onmessage = (event) => {
+          if (isDisposed) return;
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'telemetry') {
+              setTelemetry(data.data);
+            } else if (data.type === 'agent_state') {
+              setAgentState(data.state);
+              if (data.message) setStatusMessage(data.message);
+            } else if (data.type === 'token_chunk') {
+              const botMsg: ChatMessage = {
+                id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                sender: 'jarvis',
+                content: data.chunk,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              };
+              setMessages((prev) => [...prev, botMsg]);
+            }
+          } catch (e) {
+            // Silently drop invalid packets
+          }
+        };
+      } catch (err) {
+        if (!isDisposed) {
+          reconnectTimer = window.setTimeout(connect, 3000);
         }
-      };
+      }
     };
 
     connect();
 
     return () => {
-      clearTimeout(reconnectTimer);
-      if (socket) socket.close();
+      isDisposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (socket) {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.close(1000, 'Component unmounted');
+        } else if (socket.readyState === WebSocket.CONNECTING) {
+          socket.onopen = () => socket?.close(1000, 'Component unmounted');
+          socket.onerror = null;
+          socket.onclose = null;
+        }
+      }
     };
   }, []);
 
@@ -167,7 +193,7 @@ export function App() {
             <MemoryExplorer />
           </div>
         ) : (
-          <div className="flex-1 p-6 grid grid-cols-12 gap-6 overflow-hidden">
+          <div className="flex-1 p-4 lg:p-6 grid grid-cols-12 gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden">
             {/* Left Column: Central Arc Reactor & Status */}
             <div className="col-span-12 lg:col-span-7 flex flex-col justify-between bg-[#040e21]/40 border border-cyan-500/20 rounded-2xl p-6 backdrop-blur-sm hud-glow">
               <div className="flex justify-between items-center text-xs text-slate-400 font-hud">
