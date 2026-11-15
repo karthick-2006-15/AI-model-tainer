@@ -71,7 +71,9 @@ class WebSearchClient:
 
         except Exception as e:
             logger.warning(f"DuckDuckGo search error: {e}")
-            # Fallback mock search for offline / restricted environments
+
+        # Fallback mock search for offline, rate-limited, or empty response
+        if not results:
             results.append({
                 "title": f"Search Results for: {query}",
                 "url": f"https://duckduckgo.com/?q={encoded_query}",

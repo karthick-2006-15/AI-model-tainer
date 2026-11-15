@@ -9,6 +9,8 @@ from modules.computer_use.loop import observation_loop
 from modules.computer_use.whatsapp import whatsapp_automation
 from modules.computer_use.worksheet import worksheet_engine
 from modules.computer_use.browser import browser_automation
+from modules.computer_use.app_discovery import app_discovery
+from modules.computer_use.app_manager import universal_app_manager
 
 __all__ = [
     "screen_intelligence",
@@ -17,5 +19,7 @@ __all__ = [
     "observation_loop",
     "whatsapp_automation",
     "worksheet_engine",
-    "browser_automation"
+    "browser_automation",
+    "app_discovery",
+    "universal_app_manager"
 ]

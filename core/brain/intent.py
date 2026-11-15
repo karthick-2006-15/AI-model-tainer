@@ -51,8 +51,30 @@ class IntentClassifier:
         r"\b(?:scroll)\s+(up|down)\b"
     ]
     APP_LAUNCH_PATTERNS = [
-        r"\b(?:open|launch|start|run|bring\s+up|switch\s+to)\s+(?:the\s+)?(?:app\s+|application\s+)?([a-zA-Z0-9_\-\s]+)",
+        r"\b(?:open|launch|start|run|bring\s+up)\s+(?:the\s+)?(?:app\s+|application\s+)?([a-zA-Z0-9_\-\s]+)",
         r"\b(?:open|launch|start|run)\s+up\s+(?:the\s+)?(?:app\s+|application\s+)?([a-zA-Z0-9_\-\s]+)",
+    ]
+    APP_CLOSE_PATTERNS = [
+        r"\b(?:close|quit|exit|kill)\s+(?:the\s+)?(?:app\s+|application\s+)?([a-zA-Z0-9_\-\s]+)"
+    ]
+    APP_RESTART_PATTERNS = [
+        r"\b(?:restart|re-open|reload)\s+(?:the\s+)?(?:app\s+|application\s+)?([a-zA-Z0-9_\-\s]+)"
+    ]
+    APP_SWITCH_PATTERNS = [
+        r"\b(?:switch\s+to|bring\s+to\s+front|focus)\s+(?:the\s+)?(?:app\s+|application\s+)?([a-zA-Z0-9_\-\s]+)"
+    ]
+    RUNNING_APPS_PATTERNS = [
+        r"\b(?:what apps are running|list running apps|show running apps|running applications|what is running|active windows)\b"
+    ]
+    INSTALLED_APPS_PATTERNS = [
+        r"\b(?:find all installed|list installed apps|show installed apps|what apps are installed)\s*([a-zA-Z0-9_\-\s]*)"
+    ]
+    APP_BY_DESC_PATTERNS = [
+        r"\b(?:open|launch|find|what is)\s+(?:the\s+)?(?:app|application)?\s*(?:i\s+use\s+for|that\s+i\s+use\s+for|used\s+for)\s+([a-zA-Z0-9_\-\s]+)",
+        r"\b(?:open|launch)\s+my\s+(music player|music|code editor|browser|photo editor)\b"
+    ]
+    FOLDER_PATTERNS = [
+        r"\b(?:open|show)\s+(?:my\s+)?(downloads|documents|desktop|pictures|videos|music)\s+folder\b"
     ]
     SYSTEM_METRIC_PATTERNS = [
         r"\b(?:check|show|what is|get)\s+(?:my\s+)?(?:laptop|pc|system|cpu|ram|memory|battery|storage|disk)\b",
@@ -171,7 +193,100 @@ class IntentClassifier:
                     extracted_params=params
                 )
 
-        # 2. Application Launch Check
+        # 2a. Special User Folders Check ("open my Downloads folder")
+        for p in self.FOLDER_PATTERNS:
+            m_f = re.search(p, cleaned)
+            if m_f:
+                folder_name = m_f.group(1).strip()
+                params["app_name"] = f"{folder_name} folder"
+                params["app_name_or_id"] = f"{folder_name} folder"
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.95,
+                    target_tool="open_application",
+                    extracted_params=params
+                )
+
+        # 2b. Close Application Check ("close Notepad", "quit Chrome")
+        for p in self.APP_CLOSE_PATTERNS:
+            m_c = re.search(p, cleaned)
+            if m_c:
+                target_app = m_c.group(1).strip()
+                target_app = re.sub(r"\s+(?:please|now|for\s+me)$", "", target_app).strip()
+                params["app_name_or_process"] = target_app
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.94,
+                    target_tool="computer.close_app",
+                    extracted_params=params
+                )
+
+        # 2c. Restart Application Check ("restart VS Code")
+        for p in self.APP_RESTART_PATTERNS:
+            m_r = re.search(p, cleaned)
+            if m_r:
+                target_app = m_r.group(1).strip()
+                target_app = re.sub(r"\s+(?:please|now|for\s+me)$", "", target_app).strip()
+                params["app_name_or_process"] = target_app
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.94,
+                    target_tool="computer.restart_app",
+                    extracted_params=params
+                )
+
+        # 2d. Switch Window / Bring to Front Check ("switch to Chrome")
+        for p in self.APP_SWITCH_PATTERNS:
+            m_s = re.search(p, cleaned)
+            if m_s:
+                target_app = m_s.group(1).strip()
+                target_app = re.sub(r"\s+(?:please|now|for\s+me)$", "", target_app).strip()
+                params["app_name_or_window"] = target_app
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.94,
+                    target_tool="computer.switch_app",
+                    extracted_params=params
+                )
+
+        # 2e. Running Applications Check ("what apps are running", "list running apps")
+        for p in self.RUNNING_APPS_PATTERNS:
+            if re.search(p, cleaned):
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.95,
+                    target_tool="computer.get_running_apps",
+                    extracted_params={}
+                )
+
+        # 2f. Installed Applications Listing ("find all installed browsers", "list installed apps")
+        for p in self.INSTALLED_APPS_PATTERNS:
+            m_inst = re.search(p, cleaned)
+            if m_inst:
+                cat = m_inst.group(1).strip() if m_inst.groups() else ""
+                cat = re.sub(r"\s+(?:please|now|for\s+me)$", "", cat).strip()
+                params["category"] = cat
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.93,
+                    target_tool="computer.list_installed_apps",
+                    extracted_params=params
+                )
+
+        # 2g. Find App by Description ("open the application I use for Python", "open my music player")
+        for p in self.APP_BY_DESC_PATTERNS:
+            m_desc = re.search(p, cleaned)
+            if m_desc:
+                desc = m_desc.group(1).strip()
+                params["description"] = desc
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.93,
+                    target_tool="computer.find_app_by_description",
+                    extracted_params=params
+                )
+
+        # 2h. Application Launch Check
         for p in self.APP_LAUNCH_PATTERNS:
             match = re.search(p, cleaned)
             if match:

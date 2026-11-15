@@ -84,27 +84,90 @@ All tools adhere to strict JSON schema validation, permission checks, execution 
   { "clicks": -5 }
   ```
 
-### 1.8 `computer.open_application`
-- **Description:** Launches a Windows desktop application (e.g. VS Code, Chrome, WhatsApp, Notepad, Calculator).
+### 1.8 `computer.open_app` (and alias `computer.open_application`)
+- **Description:** Universal application launcher: discovers, launches, and verifies Win32, UWP, Store, system utilities, and user special folders. Does not depend on hardcoded lists. Verifies active window/process appearance within 6s.
 - **Permission Level:** `LEVEL_2_MODIFY`
 - **Parameters:**
-  - `app_name` *(string, required)*: Application name or path.
+  - `app_name_or_id` *(string, required)*: Application name, alias, executable, or description.
 - **Invocation Example:**
   ```json
-  { "app_name": "vscode" }
+  { "app_name_or_id": "Photoshop" }
   ```
 
-### 1.9 `computer.switch_window`
-- **Description:** Brings a window matching a specific title substring or process name to the foreground.
+### 1.9 `computer.close_app`
+- **Description:** Gracefully closes an application by sending WM_CLOSE to its windows. Checks for unsaved work in productivity apps and requires confirmation before closing if unsaved indicators are present.
 - **Permission Level:** `LEVEL_2_MODIFY`
 - **Parameters:**
-  - `title_match` *(string, required)*: Substring to match in window title.
+  - `app_name_or_process` *(string, required)*: Target application name or process.
+  - `force` *(boolean, optional, default: false)*: Force terminate process if true.
 - **Invocation Example:**
   ```json
-  { "title_match": "Visual Studio Code" }
+  { "app_name_or_process": "Notepad", "force": false }
   ```
 
-### 1.10 `computer.verify_action`
+### 1.10 `computer.restart_app`
+- **Description:** Restarts an application by safely terminating it, waiting for process exit, and re-launching with verification.
+- **Permission Level:** `LEVEL_2_MODIFY`
+- **Parameters:**
+  - `app_name_or_process` *(string, required)*: Target application name or process.
+- **Invocation Example:**
+  ```json
+  { "app_name_or_process": "Visual Studio Code" }
+  ```
+
+### 1.11 `computer.switch_app` (and alias `computer.switch_window`)
+- **Description:** Brings an open application window to the foreground by matching title or process name. Overcomes Windows 11 foreground lock restrictions via thread input attachment.
+- **Permission Level:** `LEVEL_2_MODIFY`
+- **Parameters:**
+  - `app_name_or_window` *(string, required)*: Target application or window title.
+- **Invocation Example:**
+  ```json
+  { "app_name_or_window": "Google Chrome" }
+  ```
+
+### 1.12 `computer.search_app`
+- **Description:** Searches the local application discovery index across names, aliases, and executables.
+- **Permission Level:** `LEVEL_1_READ`
+- **Parameters:**
+  - `query` *(string, required)*: Search query string.
+  - `limit` *(integer, optional, default: 5)*: Maximum candidates to return.
+- **Invocation Example:**
+  ```json
+  { "query": "python", "limit": 3 }
+  ```
+
+### 1.13 `computer.list_installed_apps`
+- **Description:** Returns installed applications indexed across the system, optionally filtered by functional category (browser, development, media, productivity, design, system, utility).
+- **Permission Level:** `LEVEL_1_READ`
+- **Parameters:**
+  - `category` *(string, optional)*: Category filter.
+  - `limit` *(integer, optional, default: 50)*: Maximum items to return.
+- **Invocation Example:**
+  ```json
+  { "category": "browser", "limit": 10 }
+  ```
+
+### 1.14 `computer.find_app_by_description`
+- **Description:** Matches natural language functional descriptions (e.g. "application I use for Python", "my music player") to indexed applications using keyword and category inference.
+- **Permission Level:** `LEVEL_1_READ`
+- **Parameters:**
+  - `description` *(string, required)*: Functional description.
+  - `limit` *(integer, optional, default: 5)*: Maximum matches to return.
+- **Invocation Example:**
+  ```json
+  { "description": "application I use for Python" }
+  ```
+
+### 1.15 `computer.get_running_apps`
+- **Description:** Enumerates all active desktop applications currently presenting visible top-level windows.
+- **Permission Level:** `LEVEL_1_READ`
+- **Parameters:** None.
+- **Invocation Example:**
+  ```json
+  {}
+  ```
+
+### 1.16 `computer.verify_action`
 - **Description:** Compares before and after visual screen states to verify whether a requested action succeeded.
 - **Permission Level:** `LEVEL_1_READ`
 - **Parameters:**

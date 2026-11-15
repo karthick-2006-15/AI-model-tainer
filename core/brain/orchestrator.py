@@ -165,9 +165,57 @@ class BrainOrchestrator:
             disk = result.get("disk", {}).get("percent", 0)
             return f"System telemetry check complete. CPU utilization is at {cpu}%, Memory is at {ram}%, and Primary Storage is {disk}% full. All parameters optimal."
         
-        elif tool_name == "open_application":
+        elif tool_name in ("open_application", "computer.open_app", "computer.open_application"):
             if isinstance(result, dict):
-                return result.get("message", f"Application '{result.get('app_name', 'requested app')}' launched successfully.")
+                if result.get("ambiguous"):
+                    cands = ", ".join(c.get("name") for c in result.get("candidates", [])[:3])
+                    return f"Multiple matching applications found: {cands}. Which one would you like me to open?"
+                app_name = result.get("app_name", "Application")
+                if result.get("verified"):
+                    return f"{app_name} is open."
+                return result.get("message", f"{app_name} launched.")
+            return str(result)
+
+        elif tool_name == "computer.close_app":
+            if isinstance(result, dict):
+                return result.get("message", "Application closed.")
+            return str(result)
+
+        elif tool_name in ("computer.switch_app", "computer.switch_window"):
+            if isinstance(result, dict):
+                target = result.get("target") or result.get("window_title", "window")
+                if result.get("success"):
+                    return f"Switched to {target}."
+                return f"Could not find or switch to {target}."
+            return str(result)
+
+        elif tool_name == "computer.restart_app":
+            if isinstance(result, dict):
+                return result.get("message", "Application restarted.")
+            return str(result)
+
+        elif tool_name == "computer.get_running_apps":
+            if isinstance(result, list):
+                if not result:
+                    return "No desktop GUI applications are currently running."
+                names = [app.get("primary_title") or app.get("process_name") for app in result[:5]]
+                return f"Currently running applications: {', '.join(names)}."
+            return str(result)
+
+        elif tool_name == "computer.list_installed_apps":
+            if isinstance(result, dict):
+                total = result.get("total_indexed", 0)
+                apps = result.get("apps", [])
+                sample = ", ".join(a.get("name") for a in apps[:4])
+                return f"I have indexed {total} applications on your system, including: {sample}."
+            return str(result)
+
+        elif tool_name == "computer.find_app_by_description":
+            if isinstance(result, list):
+                if not result:
+                    return "I could not find an application matching that description."
+                top = result[0]
+                return f"For that task, you have {top.get('name')}. Would you like me to open it?"
             return str(result)
 
         elif tool_name == "whatsapp.prepare_message" and isinstance(result, dict):

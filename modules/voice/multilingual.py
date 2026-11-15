@@ -79,7 +79,17 @@ class MultilingualEngine:
 
         # 1. Tanglish Normalizations
         if lang in ("tanglish", "ta"):
-            # Open app: "X open pannu" / "X open seiyyi" -> "open X"
+            # Close app: "X ah close pannu" / "X close pannunga" -> "close X"
+            m_close = re.search(r"([a-zA-Z0-9_\-\s]+?)(?:\s+ah|\s+a)?\s+(?:close\s+pannu|close\s+seiyyi|close\s+pannunga|moodu)", c_lower)
+            if m_close:
+                return f"close {m_close.group(1).strip()}", lang
+
+            # Switch app: "X ku switch pannu" / "X ku mathu" -> "switch to X"
+            m_switch = re.search(r"([a-zA-Z0-9_\-\s]+?)\s+ku\s+(?:switch\s+pannu|switch\s+pannunga|mathu|focus\s+pannu)", c_lower)
+            if m_switch:
+                return f"switch to {m_switch.group(1).strip()}", lang
+
+            # Open folder / app: "X open pannu" / "X open seiyyi" -> "open X"
             m_open = re.search(r"([a-zA-Z0-9_\-\s]+?)\s+(?:open\s+pannu|open\s+seiyyi|open\s+pannunga|khol)", c_lower)
             if m_open:
                 return f"open {m_open.group(1).strip()}", lang
@@ -103,6 +113,16 @@ class MultilingualEngine:
 
         # 2. Hinglish Normalizations
         if lang in ("hinglish", "hi"):
+            # Close app: "X band karo" / "X close karo" -> "close X"
+            m_close_hi = re.search(r"([a-zA-Z0-9_\-\s]+?)\s+(?:band\s+karo|band\s+kar\s+do|close\s+karo)", c_lower)
+            if m_close_hi:
+                return f"close {m_close_hi.group(1).strip()}", lang
+
+            # Switch app: "X par switch karo" / "X dikhao" -> "switch to X"
+            m_switch_hi = re.search(r"([a-zA-Z0-9_\-\s]+?)\s+(?:par\s+switch\s+karo|par\s+jaao|mein\s+jaao)", c_lower)
+            if m_switch_hi:
+                return f"switch to {m_switch_hi.group(1).strip()}", lang
+
             # Open app: "Chrome kholo" / "WhatsApp chalao" -> "open Chrome"
             m_open_hi = re.search(r"([a-zA-Z0-9_\-\s]+?)\s+(?:kholo|chalao|khol\s+do)", c_lower)
             if m_open_hi:

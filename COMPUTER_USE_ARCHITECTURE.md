@@ -133,3 +133,63 @@ The Screen Intelligence engine ([modules/computer_use/screen.py](file:///c:/User
 - **Visual State Comparison:** Computes pixel-wise absolute difference ratios between consecutive screenshots to verify whether UI state changes occurred.
 - **OCR Extraction:** Runs local Tesseract OCR on region or full screen to parse text, buttons, and error messages.
 - **Multi-Window Context:** Enumerates open desktop windows so JARVIS knows what application the user is currently working on.
+
+---
+
+## 7. Universal Windows Application Discovery & Control Engine
+
+The Universal Application Management system ([modules/computer_use/app_discovery.py](file:///c:/Users/karth/OneDrive/Desktop/sanju/modules/computer_use/app_discovery.py) and [modules/computer_use/app_manager.py](file:///c:/Users/karth/OneDrive/Desktop/sanju/modules/computer_use/app_manager.py)) completely eliminates hardcoded application lists by dynamically discovering and controlling all Windows 11 software:
+
+```mermaid
+flowchart TD
+    subgraph DiscoverySources [Windows Discovery Sources]
+        S1[Start Menu Shortcuts .lnk]
+        S2[Registry Uninstall Keys]
+        S3[Registry App Paths]
+        S4[UWP / Store Packages Get-StartApps]
+        S5[App Execution Aliases WindowsApps]
+        S6[System Utilities & Settings URIs]
+        S7[User Special Folders Downloads, Docs]
+    end
+
+    DiscoverySources --> AppIndex[Unified Searchable Application Index]
+    
+    subgraph QueryResolution [Resolution & Intent]
+        UserQuery([User Voice or Text Query]) --> Matcher{Name, Alias, or Semantic Match?}
+        AppIndex --> Matcher
+        Matcher -->|Single Best Match| Launcher[Universal Application Launcher]
+        Matcher -->|Ambiguous Matches| Disambiguate[Prompt User with Choices]
+        Matcher -->|Description Query| SemanticFinder[Category & Keyword Matcher]
+    end
+
+    subgraph LaunchVerification [Launch & Verification Engine]
+        Launcher --> LaunchType{Launch Mechanism}
+        LaunchType -->|UWP / Store| ShellApps[shell:AppsFolder]
+        LaunchType -->|System URI| SysURI[Protocol URI]
+        LaunchType -->|Folder| ExpFolder[File Explorer]
+        LaunchType -->|Win32 Binary| TaskBridge[Interactive Desktop Bridge]
+        
+        ShellApps --> PollVerify[Poll Process & Window Appearance 6s]
+        SysURI --> PollVerify
+        ExpFolder --> PollVerify
+        TaskBridge --> PollVerify
+        
+        PollVerify -->|Window Detected| BringFront[Switch Window to Foreground]
+        BringFront --> SuccessReport[Verified Success Reported Spoken & HUD]
+        PollVerify -->|Timeout| Diagnostic[Capture Reason & Report Diagnostic]
+    end
+```
+
+### Discovery Coverage:
+1. **Windows Start Menu:** Scans `%ProgramData%` and `%AppData%` for all `.lnk` shortcuts.
+2. **Windows Registry:** Scans `HKLM`, `WOW6432Node`, and `HKCU` `Uninstall` keys.
+3. **App Paths:** Queries registered executables in `SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths`.
+4. **Microsoft Store & UWP:** Queries `Get-StartApps` for package IDs and `shell:AppsFolder` targets.
+5. **App Execution Aliases:** Scans `%LOCALAPPDATA%\Microsoft\WindowsApps`.
+6. **System Utilities & Settings:** Pre-maps canonical system utilities (Task Manager, Calculator, Settings `ms-settings:`, Control Panel, Paint, Terminal).
+7. **Special Folders:** Indexes Downloads, Documents, Desktop, Pictures, Videos, and Music.
+
+### Window Switching & Graceful Control:
+- **Thread Input Attachment:** Uses `win32process.AttachThreadInput` to overcome Windows 11 foreground locking when switching windows.
+- **Graceful Window Close:** Sends `WM_CLOSE` to allow apps to prompt for unsaved changes before resorting to process termination.
+- **Unsaved Work Guard:** Detects open dirty state indicators (`*` or `unsaved` in title) on productivity apps (VS Code, Word, Excel, Notepad) and requires confirmation before closing.

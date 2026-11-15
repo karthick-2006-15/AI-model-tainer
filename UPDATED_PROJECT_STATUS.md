@@ -11,13 +11,14 @@
 | Feature | Subsystem | Status | Key Modules |
 | :--- | :--- | :---: | :--- |
 | **Autonomous Computer Use** | `modules/computer_use/` | **COMPLETE** | [screen.py](file:///c:/Users/karth/OneDrive/Desktop/sanju/modules/computer_use/screen.py), [native_uia.py](file:///c:/Users/karth/OneDrive/Desktop/sanju/modules/computer_use/native_uia.py), [mouse_kb.py](file:///c:/Users/karth/OneDrive/Desktop/sanju/modules/computer_use/mouse_kb.py), [loop.py](file:///c:/Users/karth/OneDrive/Desktop/sanju/modules/computer_use/loop.py) |
+| **Universal Windows App Discovery & Control** | `modules/computer_use/app_discovery.py`, `modules/computer_use/app_manager.py` | **COMPLETE** | Discovers 340+ apps dynamically across Start Menu, Registry, App Paths, UWP (`Get-StartApps`), WindowsApps, and system utilities. Zero hardcoded app lists. Full lifecycle: search, launch verification, graceful close, restart, and window switching. |
 | **WhatsApp Automation** | `modules/computer_use/whatsapp.py` | **COMPLETE** | Contact resolution, relation aliases, confirmation challenges, delivery verification |
 | **Worksheet & Form Engine** | `modules/computer_use/worksheet.py` | **COMPLETE** | Question extraction, classification, search-based research, field filling, Level 3 submit guard |
 | **Always-On Startup Daemon** | `jarvis_service.py` & VBScript | **COMPLETE** | Auto-starts on boot via Windows Startup folder, vocal welcome on login |
 | **Voice-First Pipeline** | `modules/voice/` | **COMPLETE** | OpenWakeWord/Whisper, VAD, continuous conversation mode (15s sliding window), barge-in |
 | **Multilingual Voice** | `modules/voice/multilingual.py` | **COMPLETE** | Auto language detection, code-switching normalization, localized spoken responses |
 | **Dual-Gate Safety Model** | `core/security/permissions.py` | **COMPLETE** | 3-tier permissions (`READ`, `MODIFY`, `EXTERNAL_ACTION`), global emergency stop |
-| **Tool Registry (25+ Tools)** | `core/brain/tools.py` | **COMPLETE** | `computer.*` (10), `browser.*` (5), `whatsapp.*` (5), `worksheet.*` (5) |
+| **Tool Registry (34+ Tools)** | `core/brain/tools.py` | **COMPLETE** | `computer.*` (19 tools including app discovery, window switching, and screen intel), `browser.*` (5), `whatsapp.*` (5), `worksheet.*` (5) |
 | **Holographic Core HUD** | `ui/` (React + Vite + Tailwind) | **COMPLETE** | Real-time WebSocket telemetry, voice visualizer, emergency abort button |
 
 ---

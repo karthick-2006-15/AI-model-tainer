@@ -380,16 +380,74 @@ def tool_computer_scroll(direction: str = "down", clicks: int = 4) -> Dict[str, 
     return mouse_kb.scroll(clicks=clicks, direction=direction)
 
 
-@jarvis_tool(name="computer.open_application", description="Launch or bring a Windows application to the foreground.", permission_level=2)
-def tool_computer_open_application(app_name: str) -> Dict[str, Any]:
-    from modules.automation.apps import ApplicationManager
-    return ApplicationManager.launch(app_name=app_name)
+@jarvis_tool(name="computer.search_app", description="Search indexed Windows applications across Win32, UWP, Store, and system utilities.", permission_level=1)
+def tool_computer_search_app(query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    from modules.computer_use.app_manager import universal_app_manager
+    return universal_app_manager.search_app(query=query, limit=limit)
 
 
-@jarvis_tool(name="computer.switch_window", description="Bring a window to the foreground by matching its title.", permission_level=2)
+@jarvis_tool(name="computer.list_installed_apps", description="List all applications discovered and indexed on the Windows system, optionally filtered by category.", permission_level=1)
+def tool_computer_list_installed_apps(category: str = "", limit: int = 50) -> Dict[str, Any]:
+    from modules.computer_use.app_manager import universal_app_manager
+    return universal_app_manager.list_installed_apps(category=category or None, limit=limit)
+
+
+@jarvis_tool(name="computer.find_app_by_description", description="Find installed applications matching a functional description (e.g. 'application I use for Python', 'my music player').", permission_level=1)
+def tool_computer_find_app_by_description(description: str, limit: int = 5) -> List[Dict[str, Any]]:
+    from modules.computer_use.app_manager import universal_app_manager
+    return universal_app_manager.find_app_by_description(description=description, limit=limit)
+
+
+@jarvis_tool(name="computer.get_running_apps", description="List all currently running desktop applications that have open visible GUI windows.", permission_level=1)
+def tool_computer_get_running_apps() -> List[Dict[str, Any]]:
+    from modules.computer_use.app_manager import universal_app_manager
+    return universal_app_manager.get_running_apps()
+
+
+@jarvis_tool(name="computer.open_app", description="Universal application launcher: discovers, launches, and verifies Win32, UWP, Store, system utilities, and folders.", permission_level=2)
+def tool_computer_open_app(app_name_or_id: str = "", app_name: str = "") -> Dict[str, Any]:
+    from modules.computer_use.app_manager import universal_app_manager
+    query = app_name_or_id or app_name
+    return universal_app_manager.open_app(app_name_or_query=query)
+
+
+@jarvis_tool(name="computer.open_application", description="Launch or bring a Windows application to the foreground (alias for computer.open_app).", permission_level=2)
+def tool_computer_open_application(app_name: str = "", app_name_or_id: str = "") -> Dict[str, Any]:
+    from modules.computer_use.app_manager import universal_app_manager
+    query = app_name or app_name_or_id
+    return universal_app_manager.open_app(app_name_or_query=query)
+
+
+@jarvis_tool(name="open_application", description="Universal application launcher fast-path tool.", permission_level=2)
+def tool_open_application(app_name: str = "", app_name_or_id: str = "") -> Dict[str, Any]:
+    from modules.computer_use.app_manager import universal_app_manager
+    query = app_name or app_name_or_id
+    return universal_app_manager.open_app(app_name_or_query=query)
+
+
+@jarvis_tool(name="computer.close_app", description="Gracefully closes an active application, warning if unsaved changes exist.", permission_level=2)
+def tool_computer_close_app(app_name_or_process: str, force: bool = False) -> Dict[str, Any]:
+    from modules.computer_use.app_manager import universal_app_manager
+    return universal_app_manager.close_app(app_name_or_process=app_name_or_process, force=force)
+
+
+@jarvis_tool(name="computer.restart_app", description="Restarts an application by closing it and re-launching with verification.", permission_level=2)
+def tool_computer_restart_app(app_name_or_process: str) -> Dict[str, Any]:
+    from modules.computer_use.app_manager import universal_app_manager
+    return universal_app_manager.restart_app(app_name_or_process=app_name_or_process)
+
+
+@jarvis_tool(name="computer.switch_app", description="Brings an open application window to the foreground by matching its title or process name.", permission_level=2)
+def tool_computer_switch_app(app_name_or_window: str) -> Dict[str, Any]:
+    from modules.computer_use.app_manager import universal_app_manager
+    success = universal_app_manager.switch_app(app_name_or_window=app_name_or_window)
+    return {"success": success, "target": app_name_or_window, "focused": success}
+
+
+@jarvis_tool(name="computer.switch_window", description="Bring a window to the foreground by matching its title (alias for computer.switch_app).", permission_level=2)
 def tool_computer_switch_window(window_title: str) -> Dict[str, Any]:
-    from modules.automation.apps import ApplicationManager
-    success = ApplicationManager.focus_window(window_title)
+    from modules.computer_use.app_manager import universal_app_manager
+    success = universal_app_manager.switch_app(app_name_or_window=window_title)
     return {"success": success, "window_title": window_title, "focused": success}
 
 
