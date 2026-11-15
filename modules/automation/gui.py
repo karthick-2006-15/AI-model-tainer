@@ -17,19 +17,24 @@ logger = logging.getLogger("jarvis.automation.gui")
 
 class GUIController:
     @staticmethod
-    def take_screenshot(output_path: str) -> Dict[str, Any]:
+    def take_screenshot(output_path: str = "storage/media/screenshots/screenshot.png") -> Dict[str, Any]:
         """Captures a screenshot of the primary monitor and saves to disk."""
         try:
-            os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-            screenshot = pyautogui.screenshot()
-            screenshot.save(output_path)
-            logger.info(f"Captured screenshot to: {output_path}")
-            return {
-                "success": True,
-                "path": output_path,
-                "width": screenshot.width,
-                "height": screenshot.height
-            }
+            from modules.vision.capture import screen_capture_manager
+            res = screen_capture_manager.capture_screen()
+            if res.get("success"):
+                import shutil
+                if output_path and output_path != res.get("file_path"):
+                    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+                    shutil.copyfile(res["file_path"], output_path)
+                return {
+                    "success": True,
+                    "path": output_path or res.get("file_path"),
+                    "width": res.get("width", 1920),
+                    "height": res.get("height", 1080),
+                    "message": "Desktop screenshot captured successfully."
+                }
+            return res
         except Exception as e:
             logger.error(f"Failed to capture screenshot: {e}")
             return {
