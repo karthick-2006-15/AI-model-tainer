@@ -129,17 +129,22 @@ class ApplicationManager:
             if os.name == "nt":
                 launched = False
 
-                # Method 1: os.startfile (ShellExecuteW - preferred on Windows for full interactive desktop session)
-                try:
-                    if effective_args:
-                        os.startfile(target, "open", arguments=effective_args)
-                    else:
-                        os.startfile(target)
-                    launched = True
-                except Exception as ex_start:
-                    logger.warning(f"os.startfile failed for '{target}': {ex_start}. Trying process fallback.")
+                # Method 1: Interactive Desktop Bridge via Windows Task Scheduler (Guarantees display on WinSta0\Default)
+                if target.endswith(".exe") or (shutil.which(target) and not target.endswith(":")):
+                    launched = cls._launch_interactive_desktop(target, effective_args)
 
-                # Method 2: Direct subprocess with detached process flags or explorer fallback
+                # Method 2: os.startfile (ShellExecuteW)
+                if not launched:
+                    try:
+                        if effective_args:
+                            os.startfile(target, "open", arguments=effective_args)
+                        else:
+                            os.startfile(target)
+                        launched = True
+                    except Exception as ex_start:
+                        logger.warning(f"os.startfile failed for '{target}': {ex_start}. Trying process fallback.")
+
+                # Method 3: Direct subprocess with detached process flags or explorer fallback
                 if not launched:
                     try:
                         if target.endswith(".exe") or shutil.which(target):
@@ -172,6 +177,35 @@ class ApplicationManager:
                 "success": False,
                 "error": str(e)
             }
+
+    @classmethod
+    def _launch_interactive_desktop(cls, target: str, args: Optional[str] = None) -> bool:
+        """Launches an application directly onto the interactive user desktop (WinSta0\\Default).
+        Uses Windows Task Scheduler to bridge across session, sandbox, and desktop station boundaries.
+        """
+        import uuid
+        task_name = f"JARVIS_Launch_{uuid.uuid4().hex[:8]}"
+        cmd = f'"{target}"'
+        if args:
+            cmd += f" {args}"
+
+        try:
+            # 1. Register ephemeral single-run task in active user desktop session
+            create_cmd = ["schtasks", "/create", "/tn", task_name, "/tr", cmd, "/sc", "once", "/st", "00:00", "/f"]
+            res_create = subprocess.run(create_cmd, capture_output=True, text=True)
+            if res_create.returncode != 0:
+                logger.warning(f"Failed to create interactive task: {res_create.stderr}")
+                return False
+
+            # 2. Run immediately in the user's interactive desktop session
+            res_run = subprocess.run(["schtasks", "/run", "/tn", task_name], capture_output=True, text=True)
+
+            # 3. Clean up the ephemeral task registration
+            subprocess.run(["schtasks", "/delete", "/tn", task_name, "/f"], capture_output=True)
+            return res_run.returncode == 0
+        except Exception as e:
+            logger.warning(f"_launch_interactive_desktop exception: {e}")
+            return False
 
     @classmethod
     def close(cls, app_name: str, force: bool = False) -> Dict[str, Any]:
