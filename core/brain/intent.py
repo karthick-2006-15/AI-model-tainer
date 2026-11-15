@@ -33,6 +33,23 @@ class IntentClassifier:
         r"^(?:how\s+are\s+you|how\s+are\s+things|status\s+report|system\s+status)[?.]*$",
         r"\b(?:give\s+me\s+my\s+briefing|daily\s+briefing|morning\s+briefing)\b"
     ]
+    EMERGENCY_STOP_PATTERNS = [
+        r"\b(?:emergency\s+stop|abort\s+all|kill\s+all|stop\s+everything|halt|abort)\b"
+    ]
+    WHATSAPP_MESSAGE_PATTERNS = [
+        r"\b(?:send|whatsapp)\s+(?:message\s+)?['\"]?([^'\"]+?)['\"]?\s+to\s+(?:my\s+)?([a-zA-Z0-9_\-\s]+)",
+        r"\b(?:send\s+to\s+(?:my\s+)?([a-zA-Z0-9_\-\s]+?))\s+(?:message\s+)?['\"]?([^'\"]+?)['\"]?$"
+    ]
+    SCREEN_INTELLIGENCE_PATTERNS = [
+        r"\b(?:read|what is|what's|explain)\s+(?:on\s+my\s+screen|visible\s+screen|my\s+screen|the\s+screen)\b"
+    ]
+    WORKSHEET_PATTERNS = [
+        r"\b(?:explore|fill|solve|read)\s+(?:this\s+)?(?:online\s+)?(?:worksheet|form|exam|quiz)\b"
+    ]
+    COMPUTER_NAV_PATTERNS = [
+        r"\b(?:click|press)\s+(?:the\s+)?([a-zA-Z0-9_\-\s]+?)(?:\s+button)?$",
+        r"\b(?:scroll)\s+(up|down)\b"
+    ]
     APP_LAUNCH_PATTERNS = [
         r"\b(?:open|launch|start|run|bring\s+up|switch\s+to)\s+(?:the\s+)?(?:app\s+|application\s+)?([a-zA-Z0-9_\-\s]+)",
         r"\b(?:open|launch|start|run)\s+up\s+(?:the\s+)?(?:app\s+|application\s+)?([a-zA-Z0-9_\-\s]+)",
@@ -56,7 +73,84 @@ class IntentClassifier:
         cleaned = text.lower().strip()
         params: Dict[str, Any] = {}
 
-        # 0. Greetings & Core Conversational Queries Check
+        # 0. Global Emergency Stop Check
+        for p in self.EMERGENCY_STOP_PATTERNS:
+            if re.search(p, cleaned):
+                params["reason"] = "User verbal or text emergency abort"
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=1.0,
+                    target_tool="trigger_emergency_stop",
+                    extracted_params=params
+                )
+
+        # 1. WhatsApp Messaging Check ("send Hi to my father", "send hello to dad")
+        for p in self.WHATSAPP_MESSAGE_PATTERNS:
+            match = re.search(p, cleaned)
+            if match:
+                msg = match.group(1).strip()
+                recip = match.group(2).strip()
+                # Swap if matched the second pattern
+                if "send to" in cleaned:
+                    recip, msg = match.group(1).strip(), match.group(2).strip()
+                # Clean polite words
+                recip = re.sub(r"\s+(?:please|now|for\s+me)$", "", recip).strip()
+                params["recipient"] = recip
+                params["message"] = msg
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.96,
+                    target_tool="whatsapp.prepare_message",
+                    extracted_params=params
+                )
+
+        # 2. Screen Intelligence & Visual Error Analysis Check
+        for p in self.SCREEN_INTELLIGENCE_PATTERNS:
+            if re.search(p, cleaned):
+                params["focus_area"] = "Full Screen"
+                return IntentClassification(
+                    category=IntentCategory.RESEARCH,
+                    confidence=0.95,
+                    target_tool="explain_screen",
+                    extracted_params=params
+                )
+
+        # 3. Worksheet & Online Form Exploration Check
+        for p in self.WORKSHEET_PATTERNS:
+            if re.search(p, cleaned):
+                params["source_type"] = "active_browser"
+                return IntentClassification(
+                    category=IntentCategory.COMPLEX_TASK,
+                    confidence=0.92,
+                    target_tool="worksheet.extract_questions",
+                    extracted_params=params
+                )
+
+        # 4. Computer Navigation (click, scroll)
+        for p in self.COMPUTER_NAV_PATTERNS:
+            match = re.search(p, cleaned)
+            if match:
+                if "scroll" in cleaned:
+                    direction = match.group(1)
+                    params["direction"] = direction
+                    params["clicks"] = 4
+                    return IntentClassification(
+                        category=IntentCategory.SYSTEM_CONTROL,
+                        confidence=0.92,
+                        target_tool="computer.scroll",
+                        extracted_params=params
+                    )
+                else:
+                    el_name = match.group(1).strip()
+                    params["element_name"] = el_name
+                    return IntentClassification(
+                        category=IntentCategory.SYSTEM_CONTROL,
+                        confidence=0.91,
+                        target_tool="computer.click_element",
+                        extracted_params=params
+                    )
+
+        # 5. Greetings & Core Conversational Queries Check
         for p in self.GREETING_PATTERNS:
             if re.search(p, cleaned):
                 params["query"] = cleaned

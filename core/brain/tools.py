@@ -320,3 +320,175 @@ def tool_analyze_daily_productivity() -> Dict[str, Any]:
     from modules.integrations.productivity import productivity_analyzer
     return productivity_analyzer.analyze_daily_productivity()
 
+
+@jarvis_tool(name="trigger_emergency_stop", description="Immediately halt all automated mouse, keyboard, tool, and external operations.", permission_level=1)
+def tool_trigger_emergency_stop(reason: str = "User initiated emergency abort") -> Dict[str, Any]:
+    from core.security.permissions import permission_engine
+    return permission_engine.trigger_emergency_stop(reason=reason)
+
+
+@jarvis_tool(name="reset_emergency_stop", description="Clear emergency stop state and restore normal operations.", permission_level=2)
+def tool_reset_emergency_stop() -> Dict[str, Any]:
+    from core.security.permissions import permission_engine
+    return permission_engine.reset_emergency_stop()
+
+
+# =====================================================================
+# JARVIS-7: Autonomous Computer Use, Browser & WhatsApp Tool Registry
+# =====================================================================
+
+# 1. Computer Control Tools
+@jarvis_tool(name="computer.capture_screen", description="Capture a screenshot of the primary display or region.", permission_level=1)
+def tool_computer_capture_screen() -> Dict[str, Any]:
+    from modules.computer_use.screen import screen_intelligence
+    return screen_intelligence.capture_screen()
+
+
+@jarvis_tool(name="computer.get_active_window", description="Detect the currently active foreground window, application type, and boundaries.", permission_level=1)
+def tool_computer_get_active_window() -> Dict[str, Any]:
+    from modules.computer_use.screen import screen_intelligence
+    return screen_intelligence.get_active_window()
+
+
+@jarvis_tool(name="computer.inspect_ui", description="Inspect the Windows UI Automation accessibility tree to locate interactive buttons, inputs, and tabs.", permission_level=1)
+def tool_computer_inspect_ui() -> Dict[str, Any]:
+    from modules.computer_use.native_uia import native_uia
+    return native_uia.inspect_active_window()
+
+
+@jarvis_tool(name="computer.click_element", description="Click an on-screen element by its accessible name or visual label.", permission_level=2)
+def tool_computer_click_element(element_name: str, control_type: str = "") -> Dict[str, Any]:
+    from modules.computer_use.loop import observation_loop
+    return observation_loop.click_interactive_element(element_name=element_name, control_type=control_type or None)
+
+
+@jarvis_tool(name="computer.type_text", description="Type text into the currently focused or targeted input field.", permission_level=2)
+def tool_computer_type_text(text: str) -> Dict[str, Any]:
+    from modules.computer_use.mouse_kb import mouse_kb
+    return mouse_kb.type_text(text=text)
+
+
+@jarvis_tool(name="computer.press_key", description="Press a keyboard key (e.g. enter, tab, esc, backspace).", permission_level=2)
+def tool_computer_press_key(key_name: str) -> Dict[str, Any]:
+    from modules.computer_use.mouse_kb import mouse_kb
+    return mouse_kb.press_key(key_name=key_name)
+
+
+@jarvis_tool(name="computer.scroll", description="Scroll vertically on the active window (up or down).", permission_level=2)
+def tool_computer_scroll(direction: str = "down", clicks: int = 4) -> Dict[str, Any]:
+    from modules.computer_use.mouse_kb import mouse_kb
+    return mouse_kb.scroll(clicks=clicks, direction=direction)
+
+
+@jarvis_tool(name="computer.open_application", description="Launch or bring a Windows application to the foreground.", permission_level=2)
+def tool_computer_open_application(app_name: str) -> Dict[str, Any]:
+    from modules.automation.apps import ApplicationManager
+    return ApplicationManager.launch(app_name=app_name)
+
+
+@jarvis_tool(name="computer.switch_window", description="Bring a window to the foreground by matching its title.", permission_level=2)
+def tool_computer_switch_window(window_title: str) -> Dict[str, Any]:
+    from modules.automation.apps import ApplicationManager
+    success = ApplicationManager.focus_window(window_title)
+    return {"success": success, "window_title": window_title, "focused": success}
+
+
+@jarvis_tool(name="computer.verify_action", description="Compare before and after screenshots to verify that an action caused a visible UI change.", permission_level=1)
+def tool_computer_verify_action(before_image_path: str, after_image_path: str) -> Dict[str, Any]:
+    from modules.computer_use.screen import screen_intelligence
+    return screen_intelligence.compare_visual_states(before_image_path, after_image_path)
+
+
+# 2. Browser & Web Interaction Tools
+@jarvis_tool(name="browser.get_active_tab", description="Detect the currently open browser window and active web tab.", permission_level=1)
+def tool_browser_get_active_tab() -> Dict[str, Any]:
+    from modules.computer_use.browser import browser_automation
+    return browser_automation.get_active_tab()
+
+
+@jarvis_tool(name="browser.inspect_page", description="Inspect the DOM structure, interactive forms, inputs, and links on a webpage.", permission_level=1)
+async def tool_browser_inspect_page(url: str) -> Dict[str, Any]:
+    from modules.computer_use.browser import browser_automation
+    return await browser_automation.inspect_page(url=url)
+
+
+@jarvis_tool(name="browser.extract_questions", description="Extract all visible question prompts, choices, and input fields from a webpage HTML.", permission_level=1)
+def tool_browser_extract_questions(html_content: str) -> List[Dict[str, Any]]:
+    from modules.computer_use.worksheet import worksheet_engine
+    return worksheet_engine.extract_questions_from_html(html_content=html_content)
+
+
+@jarvis_tool(name="browser.fill_field", description="Fill a specific input field on an active webpage.", permission_level=2)
+def tool_browser_fill_field(field_name: str, value: str) -> Dict[str, Any]:
+    from modules.computer_use.browser import browser_automation
+    return browser_automation.fill_field(field_name=field_name, value=value)
+
+
+@jarvis_tool(name="browser.click_element", description="Click a button or link on an active webpage.", permission_level=2)
+def tool_browser_click_element(text_or_name: str) -> Dict[str, Any]:
+    from modules.computer_use.browser import browser_automation
+    return browser_automation.click_element(text_or_name=text_or_name)
+
+
+# 3. WhatsApp Automation Tools
+@jarvis_tool(name="whatsapp.find_contact", description="Resolve a contact relation (father, mom, boss) or name using profile facts and heuristics.", permission_level=1)
+def tool_whatsapp_find_contact(contact_query: str) -> Dict[str, Any]:
+    from modules.computer_use.whatsapp import whatsapp_automation
+    return whatsapp_automation.resolve_contact(contact_query=contact_query)
+
+
+@jarvis_tool(name="whatsapp.open_conversation", description="Open WhatsApp and navigate to the specified contact conversation.", permission_level=2)
+def tool_whatsapp_open_conversation(contact_name: str) -> Dict[str, Any]:
+    from modules.computer_use.whatsapp import whatsapp_automation
+    return whatsapp_automation.open_conversation(contact_name=contact_name)
+
+
+@jarvis_tool(name="whatsapp.prepare_message", description="Draft a WhatsApp message and create a Level 3 authorization challenge for user confirmation.", permission_level=2)
+def tool_whatsapp_prepare_message(recipient: str, message: str) -> Dict[str, Any]:
+    from modules.computer_use.whatsapp import whatsapp_automation
+    return whatsapp_automation.prepare_message(recipient=recipient, message_text=message)
+
+
+@jarvis_tool(name="whatsapp.send_message", description="Send an authorized WhatsApp message. Strictly requires explicit user confirmation.", permission_level=3)
+def tool_whatsapp_send_message(recipient: str, message: str) -> Dict[str, Any]:
+    from modules.computer_use.whatsapp import whatsapp_automation
+    return whatsapp_automation.send_message(recipient=recipient, message_text=message)
+
+
+@jarvis_tool(name="whatsapp.verify_message", description="Verify that a sent message appears in the active chat conversation window.", permission_level=1)
+def tool_whatsapp_verify_message(message: str) -> Dict[str, Any]:
+    from modules.computer_use.whatsapp import whatsapp_automation
+    return whatsapp_automation.verify_message(message_text=message)
+
+
+# 4. Worksheet & Form Automation Tools
+@jarvis_tool(name="worksheet.extract_questions", description="Extract visible questions, options, and input types from an online worksheet or form.", permission_level=1)
+def tool_worksheet_extract_questions(html_content: str) -> List[Dict[str, Any]]:
+    from modules.computer_use.worksheet import worksheet_engine
+    return worksheet_engine.extract_questions_from_html(html_content=html_content)
+
+
+@jarvis_tool(name="worksheet.research_answers", description="Research factual answers for extracted worksheet questions using Internet Intelligence.", permission_level=1)
+async def tool_worksheet_research_answers(questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    from modules.computer_use.worksheet import worksheet_engine
+    return await worksheet_engine.research_answers(questions=questions)
+
+
+@jarvis_tool(name="worksheet.fill_answers", description="Populate researched answers into the corresponding worksheet form fields.", permission_level=2)
+def tool_worksheet_fill_answers(answered_questions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    from modules.computer_use.worksheet import worksheet_engine
+    return worksheet_engine.fill_answers(answered_questions=answered_questions)
+
+
+@jarvis_tool(name="worksheet.review_answers", description="Review all filled fields and compile a structured summary before submission.", permission_level=1)
+def tool_worksheet_review_answers(answered_questions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    from modules.computer_use.worksheet import worksheet_engine
+    return worksheet_engine.review_answers(answered_questions=answered_questions)
+
+
+@jarvis_tool(name="worksheet.submit", description="Submit a completed worksheet. Strictly requires explicit user confirmation.", permission_level=3)
+def tool_worksheet_submit() -> Dict[str, Any]:
+    from modules.computer_use.worksheet import worksheet_engine
+    return worksheet_engine.submit_worksheet()
+
+

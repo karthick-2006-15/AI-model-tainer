@@ -1,8 +1,8 @@
 """
 JARVIS Always-On Voice & Wake-Word Listening Service
 Runs a resilient background daemon that continuously captures microphone audio,
-detects the "Hey Jarvis" wake-phrase, executes commands via the Brain Orchestrator,
-and vocalizes responses immediately through the system speakers.
+detects the "Hey Jarvis" wake-phrase or maintains continuous multi-turn conversations,
+supports Tanglish/Hinglish/English, executes commands, and vocalizes responses.
 """
 
 import threading
@@ -13,7 +13,10 @@ from typing import Optional, Callable
 import speech_recognition as sr
 from modules.voice.wakeword import wakeword_detector
 from modules.voice.tts import tts_engine
+from modules.voice.multilingual import multilingual_engine
+from modules.voice.conversation import conversation_manager
 from core.brain.orchestrator import brain_orchestrator
+from modules.computer_use.whatsapp import whatsapp_automation
 
 logger = logging.getLogger("jarvis.voice.listener")
 
@@ -57,10 +60,9 @@ class VoiceListener:
         logger.info("JARVIS Voice Listener stopped.")
 
     def _listen_loop(self):
-        """Main listening loop with auto-recovery and noise calibration."""
+        """Main listening loop with multi-turn support, language detection, and noise calibration."""
         logger.info("Initializing microphone input device...")
         
-        # Create an asyncio event loop for this thread if needed
         try:
             self._event_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._event_loop)
@@ -76,19 +78,17 @@ class VoiceListener:
 
                     while self._running:
                         try:
-                            # Listen for speech phrase (non-blocking chunk)
+                            # Listen for speech phrase
                             audio = self._recognizer.listen(
                                 source,
                                 timeout=None,
-                                phrase_time_limit=6
+                                phrase_time_limit=7
                             )
 
-                            # Transcribe captured phrase
                             transcript = ""
                             try:
                                 transcript = self._recognizer.recognize_google(audio, language=self.language)
                             except sr.UnknownValueError:
-                                # Silence or unintelligible room audio
                                 continue
                             except sr.RequestError as e:
                                 logger.warning(f"Google STT service temporarily unreachable: {e}")
@@ -100,54 +100,75 @@ class VoiceListener:
 
                             logger.info(f"Heard audio transcript: '{transcript}'")
 
-                            # Check for Wake Word ("Hey Jarvis")
-                            wake_detected, command = wakeword_detector.check_text(transcript)
+                            # Process speech through Conversation Manager (handles continuous mode & confirmations)
+                            conv_res = conversation_manager.process_incoming_speech(transcript)
 
-                            if wake_detected:
-                                if command:
-                                    logger.info(f"Wake word detected with direct command: '{command}'")
-                                    self._execute_and_reply(command)
+                            # Case A: User answered a pending confirmation challenge ("Yes", "Aama", "Haan", "No")
+                            if conv_res.get("is_confirmation_response"):
+                                approved = conv_res["approved"]
+                                lang = conv_res.get("language", "en")
+                                pending = conv_res.get("pending_action") or {}
+
+                                if approved:
+                                    logger.info(f"User confirmed pending action: {pending.get('action')}")
+                                    # Execute authorized action
+                                    if pending.get("action") == "whatsapp_send":
+                                        recip = pending.get("recipient")
+                                        msg = pending.get("message")
+                                        send_res = whatsapp_automation.send_message(
+                                            recipient=recip,
+                                            message_text=msg,
+                                            skip_permission_check=True
+                                        )
+                                        reply = "Message sent successfully." if send_res.get("success") else "Failed to send message."
+                                    elif pending.get("action") == "worksheet_submit":
+                                        from modules.computer_use.worksheet import worksheet_engine
+                                        sub_res = worksheet_engine.submit_worksheet(skip_permission_check=True)
+                                        reply = "Worksheet submitted successfully." if sub_res.get("success") else "Submission failed."
+                                    else:
+                                        reply = "Action confirmed and executed."
+
+                                    localized_reply = multilingual_engine.localize_response(reply, lang)
+                                    tts_engine.speak(localized_reply)
+                                    self._notify_callbacks(transcript, localized_reply)
                                 else:
-                                    # User said "Hey Jarvis" alone -> Acknowledge and prompt for command
-                                    logger.info("Wake word detected without command. Prompting user...")
-                                    tts_engine.speak("Yes sir, I am listening.")
-                                    time.sleep(0.4)
+                                    logger.info("User denied pending action.")
+                                    cancel_reply = multilingual_engine.localize_response("Action cancelled.", lang)
+                                    tts_engine.speak(cancel_reply)
+                                    self._notify_callbacks(transcript, cancel_reply)
+                                continue
 
-                                    try:
-                                        # Prompt listen mode for immediate follow-up
-                                        follow_up_audio = self._recognizer.listen(
-                                            source,
-                                            timeout=5.0,
-                                            phrase_time_limit=8.0
-                                        )
-                                        follow_up_cmd = self._recognizer.recognize_google(
-                                            follow_up_audio,
-                                            language=self.language
-                                        )
-                                        if follow_up_cmd:
-                                            logger.info(f"Follow-up command received: '{follow_up_cmd}'")
-                                            self._execute_and_reply(follow_up_cmd)
-                                        else:
-                                            tts_engine.speak("Standing by, sir.")
-                                    except (sr.WaitTimeoutError, sr.UnknownValueError):
-                                        tts_engine.speak("Standing by, sir.")
-                                    except Exception as ex_prompt:
-                                        logger.warning(f"Error in prompt listening: {ex_prompt}")
+                            # Case B: Unrelated background speech while idle
+                            if not conv_res.get("handled"):
+                                continue
+
+                            lang = conv_res.get("language", "en")
+
+                            # Case C: User said greeting / wake-word only ("Hey Jarvis")
+                            if conv_res.get("is_greeting_only"):
+                                greeting_resp = multilingual_engine.localize_response("Yes, I'm listening.", lang)
+                                tts_engine.speak(greeting_resp)
+                                self._notify_callbacks(transcript, greeting_resp)
+                                continue
+
+                            # Case D: Actionable instruction (either via wake-word or continuous turn)
+                            cmd = conv_res.get("canonical_instruction") or transcript
+                            self._execute_and_reply(cmd, lang=lang, original_query=transcript)
 
                         except sr.WaitTimeoutError:
                             continue
                         except Exception as e:
                             logger.warning(f"Listening loop inner warning: {e}")
-                            time.sleep(0.5)
+                            time.sleep(0.4)
 
             except Exception as e:
                 logger.error(f"Microphone device error: {e}. Retrying in 2 seconds...")
                 time.sleep(2.0)
 
-    def _execute_and_reply(self, command_text: str):
-        """Dispatches command to Brain Orchestrator and speaks response aloud."""
+    def _execute_and_reply(self, command_text: str, lang: str = "en", original_query: str = ""):
+        """Dispatches command to Brain Orchestrator, formats concise reply, and vocalizes in user's language."""
         try:
-            logger.info(f"Dispatching voice command to Brain Orchestrator: '{command_text}'")
+            logger.info(f"Dispatching voice command: '{command_text}' (lang={lang})")
             if not self._event_loop:
                 self._event_loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self._event_loop)
@@ -156,22 +177,50 @@ class VoiceListener:
                 brain_orchestrator.process_user_request(command_text)
             )
 
-            response_text = result.get("response", "Command executed, sir.")
-            logger.info(f"Brain response: '{response_text}'")
+            raw_response = result.get("response", "Action completed, sir.")
+            tool_name = result.get("tool_executed")
 
-            # Vocalize response out loud immediately
-            tts_engine.speak(response_text)
+            # Check if this action prepared a Level 3 confirmation (e.g. WhatsApp draft or worksheet review)
+            requires_conf = False
+            action_details = None
 
-            # Notify any registered UI callbacks
-            for cb in self.on_command_callbacks:
-                try:
-                    cb(command_text, response_text)
-                except Exception as ex_cb:
-                    logger.warning(f"Callback error: {ex_cb}")
+            if "whatsapp" in str(tool_name).lower() and ("send" in command_text.lower() or "prepare" in str(tool_name).lower()):
+                # Check WhatsApp draft
+                draft = getattr(whatsapp_automation, "_last_prepared_draft", None)
+                if draft and draft.get("status") == "awaiting_user_confirmation":
+                    requires_conf = True
+                    action_details = {
+                        "action": "whatsapp_send",
+                        "recipient": draft.get("recipient"),
+                        "message": draft.get("message")
+                    }
+
+            conversation_manager.record_assistant_response(
+                response_text=raw_response,
+                requires_confirmation=requires_conf,
+                action_details=action_details
+            )
+
+            # Localize response to match user's language (Tamil, Tanglish, Hindi, Hinglish, English)
+            localized_response = multilingual_engine.localize_response(raw_response, lang)
+
+            # Vocalize response
+            tts_engine.speak(localized_response)
+
+            # Broadcast to HUD
+            self._notify_callbacks(original_query or command_text, localized_response)
 
         except Exception as e:
             logger.error(f"Error executing voice command: {e}")
-            tts_engine.speak("I encountered an error executing that request, sir.")
+            err_msg = multilingual_engine.localize_response("I encountered an error executing that request, sir.", lang)
+            tts_engine.speak(err_msg)
+
+    def _notify_callbacks(self, command_text: str, response_text: str):
+        for cb in self.on_command_callbacks:
+            try:
+                cb(command_text, response_text)
+            except Exception as ex_cb:
+                logger.warning(f"Callback error: {ex_cb}")
 
 
 # Global singleton instance

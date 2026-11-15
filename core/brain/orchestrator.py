@@ -170,6 +170,35 @@ class BrainOrchestrator:
                 return result.get("message", f"Application '{result.get('app_name', 'requested app')}' launched successfully.")
             return str(result)
 
+        elif tool_name == "whatsapp.prepare_message" and isinstance(result, dict):
+            prompt = result.get("confirmation_prompt")
+            if prompt:
+                return prompt
+            return f"I found the conversation for {result.get('recipient', 'the contact')}. Should I send \"{result.get('message')}\"?"
+
+        elif tool_name == "whatsapp.send_message" and isinstance(result, dict):
+            return result.get("report", "Message sent successfully.")
+
+        elif tool_name == "worksheet.extract_questions" and isinstance(result, list):
+            return f"I have explored the worksheet and identified {len(result)} questions. Ready to research answers and fill fields, sir."
+
+        elif tool_name == "worksheet.submit" and isinstance(result, dict):
+            return result.get("message", "Worksheet submitted successfully.")
+
+        elif tool_name == "trigger_emergency_stop":
+            return "Emergency stop activated. All operations and tools have been halted immediately, sir."
+
+        elif tool_name == "explain_screen" and isinstance(result, dict):
+            if result.get("explanation"):
+                return result.get("explanation")
+            return f"Screen analysis complete: {result.get('context', 'Active desktop window analyzed.')}"
+
+        elif tool_name == "computer.click_element" and isinstance(result, dict):
+            return f"Clicked {result.get('target', 'element')} successfully."
+
+        elif tool_name == "computer.scroll" and isinstance(result, dict):
+            return f"Scrolled {result.get('direction', 'down')}."
+
         elif tool_name == "search_workspace_files" and isinstance(result, list):
             if not result:
                 return "I searched the workspace, but found no matching files."
