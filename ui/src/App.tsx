@@ -4,6 +4,7 @@ import { CoreArcReactor } from './components/CoreArcReactor';
 import { TelemetryHUD } from './components/TelemetryHUD';
 import { ChatFeed } from './components/ChatFeed';
 import { MemoryExplorer } from './components/MemoryExplorer';
+import { TaskManagerHUD } from './components/TaskManagerHUD';
 import { AgentStateType, TelemetryData, ChatMessage } from './types/hud';
 import { ShieldCheck, Wifi, WifiOff } from 'lucide-react';
 
@@ -23,7 +24,7 @@ export function App() {
 
     // Use Vite proxy (/ws/hud) or explicit environment variable
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const envWs = import.meta.env.VITE_WS_URL;
+    const envWs = (import.meta as any).env?.VITE_WS_URL;
     const wsUrl = envWs 
       ? `${envWs}/ws/hud`
       : `${protocol}//${window.location.host}/ws/hud`;
@@ -191,6 +192,10 @@ export function App() {
         {activeTab === 'memory' ? (
           <div className="flex-1 p-6 overflow-hidden">
             <MemoryExplorer />
+          </div>
+        ) : activeTab === 'tasks' ? (
+          <div className="flex-1 p-6 overflow-hidden">
+            <TaskManagerHUD />
           </div>
         ) : (
           <div className="flex-1 p-4 lg:p-6 grid grid-cols-12 gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden">

@@ -90,6 +90,13 @@ class IntentClassifier:
     COMPLEX_TASK_PATTERNS = [
         r"\b(?:prepare me for|organize my|setup development|build a study plan)\b"
     ]
+    MULTI_APP_WORKFLOW_PATTERNS = [
+        r"\bresearch\s+(.+?)(?:,\s*|\s+and\s+)(?:prepare|create|write)\s+(?:a\s+)?report\s+and\s+(?:create|generate|make)\s+(?:a\s+)?presentation\b",
+        r"\bresearch\s+(.+?)\s+and\s+(?:create|make|generate)\s+(?:a\s+)?presentation\b"
+    ]
+    REMINDER_PATTERNS = [
+        r"\b(?:remind me to|set a reminder to|schedule a reminder)\s+(.+)"
+    ]
 
     def classify(self, text: str) -> IntentClassification:
         cleaned = text.lower().strip()
@@ -103,6 +110,30 @@ class IntentClassifier:
                     category=IntentCategory.SYSTEM_CONTROL,
                     confidence=1.0,
                     target_tool="trigger_emergency_stop",
+                    extracted_params=params
+                )
+
+        # 0b. Multi-Application Cross-App Workflow ("Research autonomous warehouse robots, prepare a report and create a presentation")
+        for p in self.MULTI_APP_WORKFLOW_PATTERNS:
+            m_flow = re.search(p, cleaned)
+            if m_flow:
+                topic = m_flow.group(1).strip()
+                params["topic"] = topic
+                return IntentClassification(
+                    category=IntentCategory.COMPLEX_TASK,
+                    confidence=0.97,
+                    target_tool="orchestration.run_multi_app_workflow",
+                    extracted_params=params
+                )
+
+        # 0c. Natural Voice Reminder Check ("remind me to submit my assignment tomorrow at 9 AM")
+        for p in self.REMINDER_PATTERNS:
+            if re.search(p, cleaned):
+                params["command"] = cleaned
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.96,
+                    target_tool="productivity.schedule_reminder",
                     extracted_params=params
                 )
 

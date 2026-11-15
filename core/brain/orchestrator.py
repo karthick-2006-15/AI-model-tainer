@@ -218,6 +218,23 @@ class BrainOrchestrator:
                 return f"For that task, you have {top.get('name')}. Would you like me to open it?"
             return str(result)
 
+        elif tool_name == "orchestration.run_multi_app_workflow" and isinstance(result, dict):
+            if result.get("success"):
+                topic = result.get("topic", "the requested topic")
+                slides = result.get("slides_count", 4)
+                return f"Research workflow complete. Generated Word report and {slides}-slide PowerPoint presentation on {topic}. Both files verified and saved."
+            return f"Workflow halted: {result.get('error', 'Execution interrupted.')}"
+
+        elif tool_name == "productivity.schedule_reminder" and isinstance(result, dict):
+            return result.get("message", "Reminder scheduled successfully.")
+
+        elif tool_name == "system.troubleshoot" and isinstance(result, dict):
+            status = result.get("status", "System check complete.")
+            alerts = result.get("alerts", [])
+            if alerts:
+                return f"{status} Alerts: {'; '.join(alerts[:2])}."
+            return "All diagnostic parameters nominal. CPU, RAM, disk, and network operating within optimal thresholds."
+
         elif tool_name == "whatsapp.prepare_message" and isinstance(result, dict):
             prompt = result.get("confirmation_prompt")
             if prompt:

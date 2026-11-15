@@ -550,3 +550,104 @@ def tool_worksheet_submit() -> Dict[str, Any]:
     return worksheet_engine.submit_worksheet()
 
 
+# 5. Multi-Application Orchestration & Office Intelligence Tools
+@jarvis_tool(name="orchestration.run_multi_app_workflow", description="Execute an autonomous end-to-end multi-app workflow (research web, generate Word report, create PowerPoint presentation, verify files, and view).", permission_level=2)
+async def tool_run_multi_app_workflow(topic: str) -> Dict[str, Any]:
+    from modules.orchestration.multi_app import multi_app_orchestrator
+    return await multi_app_orchestrator.execute_research_report_presentation_workflow(topic=topic)
+
+
+@jarvis_tool(name="office.create_presentation", description="Create a professional PowerPoint presentation (.pptx) with slides, titles, and bullet points.", permission_level=2)
+def tool_office_create_presentation(topic: str, slides: List[Dict[str, Any]]) -> Dict[str, Any]:
+    from modules.files.office_generator import office_generator
+    return office_generator.create_presentation(topic=topic, slides_data=slides)
+
+
+@jarvis_tool(name="office.create_document", description="Create a structured Word document (.docx) executive report with sections and citations.", permission_level=2)
+def tool_office_create_document(title: str, summary: str, sections: List[Dict[str, Any]]) -> Dict[str, Any]:
+    from modules.files.office_generator import office_generator
+    return office_generator.create_word_report(title=title, executive_summary=summary, sections=sections)
+
+
+@jarvis_tool(name="office.verify_file", description="Verify file integrity, valid binary headers, and execution openability.", permission_level=1)
+def tool_office_verify_file(file_path: str) -> Dict[str, Any]:
+    from modules.files.office_generator import office_generator
+    return office_generator.verify_file_integrity_and_openable(file_path=file_path)
+
+
+# 6. Intelligent File Management Tools
+@jarvis_tool(name="files.recursive_search", description="Recursively search files across workspace directories by name and extensions.", permission_level=1)
+def tool_files_recursive_search(query: str, root_dir: str = "") -> List[Dict[str, Any]]:
+    from modules.files.manager import intelligent_file_manager
+    return intelligent_file_manager.search_files_recursive(query=query, root_dir=root_dir or None)
+
+
+@jarvis_tool(name="files.preview_organization", description="Generate a preview of folder organization without moving any files.", permission_level=1)
+def tool_files_preview_organization(folder_path: str) -> Dict[str, Any]:
+    from modules.files.manager import intelligent_file_manager
+    return intelligent_file_manager.organize_folder_with_preview(folder_path=folder_path, execute=False)
+
+
+@jarvis_tool(name="files.extract_metadata", description="Extract detailed file metadata, size, timestamps, word/page counts, and SHA-256 hash.", permission_level=1)
+def tool_files_extract_metadata(file_path: str) -> Dict[str, Any]:
+    from modules.files.manager import intelligent_file_manager
+    return intelligent_file_manager.extract_metadata(file_path=file_path)
+
+
+@jarvis_tool(name="files.summarize_document", description="Parse and summarize a document (PDF, Word, PPTX, or text file).", permission_level=1)
+def tool_files_summarize_document(file_path: str) -> Dict[str, Any]:
+    from modules.files.manager import intelligent_file_manager
+    return intelligent_file_manager.summarize_document(file_path=file_path)
+
+
+@jarvis_tool(name="files.convert", description="Convert files between formats (e.g. Markdown or text to DOCX).", permission_level=2)
+def tool_files_convert(source_path: str, target_format: str) -> Dict[str, Any]:
+    from modules.files.manager import intelligent_file_manager
+    return intelligent_file_manager.convert_file(source_path=source_path, target_format=target_format)
+
+
+# 7. Windows Intelligence Diagnostics Tools
+@jarvis_tool(name="system.get_network_status", description="Inspect active network interfaces, IP addresses, data rates, and internet connectivity.", permission_level=1)
+def tool_system_get_network_status() -> Dict[str, Any]:
+    from modules.automation.windows_intel import windows_intelligence
+    return windows_intelligence.get_network_status()
+
+
+@jarvis_tool(name="system.get_startup_apps", description="List applications configured to start automatically on Windows boot.", permission_level=1)
+def tool_system_get_startup_apps() -> List[Dict[str, Any]]:
+    from modules.automation.windows_intel import windows_intelligence
+    return windows_intelligence.get_startup_applications()
+
+
+@jarvis_tool(name="system.analyze_storage", description="Analyze storage consumption and categorize largest file types in directory.", permission_level=1)
+def tool_system_analyze_storage(folder_path: str = "") -> Dict[str, Any]:
+    from modules.automation.windows_intel import windows_intelligence
+    return windows_intelligence.analyze_storage(target_folder=folder_path or None)
+
+
+@jarvis_tool(name="system.troubleshoot", description="Run automated system diagnostics on CPU, RAM, disk, network, and crash dumps.", permission_level=1)
+def tool_system_troubleshoot() -> Dict[str, Any]:
+    from modules.automation.windows_intel import windows_intelligence
+    return windows_intelligence.run_basic_troubleshooting()
+
+
+# 8. Productivity & Task Scheduling Tools
+@jarvis_tool(name="productivity.create_task", description="Create a prioritized task with optional deadline and tags.", permission_level=2)
+def tool_productivity_create_task(title: str, priority: str = "medium", deadline: str = "") -> Dict[str, Any]:
+    from modules.scheduler.productivity import productivity_manager
+    task = productivity_manager.create_task(title=title, priority=priority, deadline_str=deadline or None)
+    return task.model_dump()
+
+
+@jarvis_tool(name="productivity.list_tasks", description="List active and completed tasks with deadlines and priorities.", permission_level=1)
+def tool_productivity_list_tasks(include_completed: bool = False) -> List[Dict[str, Any]]:
+    from modules.scheduler.productivity import productivity_manager
+    return productivity_manager.list_tasks(include_completed=include_completed)
+
+
+@jarvis_tool(name="productivity.schedule_reminder", description="Schedule a reminder from natural voice instruction.", permission_level=2)
+def tool_productivity_schedule_reminder(command: str) -> Dict[str, Any]:
+    from modules.scheduler.productivity import productivity_manager
+    return productivity_manager.schedule_voice_reminder(voice_command=command)
+
+
