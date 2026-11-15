@@ -23,6 +23,17 @@ def test_intent_classification():
     assert res_app.target_tool == "open_application"
     assert res_app.extracted_params["app_name"] == "vs code"
 
+    # 2b. WhatsApp & Universal Application Intent Tests
+    res_wa = intent_classifier.classify("open whatsapp please")
+    assert res_wa.category == IntentCategory.SYSTEM_CONTROL
+    assert res_wa.target_tool == "open_application"
+    assert res_wa.extracted_params["app_name"] == "whatsapp"
+
+    res_sp = intent_classifier.classify("launch spotify")
+    assert res_sp.category == IntentCategory.SYSTEM_CONTROL
+    assert res_sp.target_tool == "open_application"
+    assert res_sp.extracted_params["app_name"] == "spotify"
+
     # 3. File Operations
     res_files = intent_classifier.classify("Find all pdfs in my project")
     assert res_files.category == IntentCategory.FILE_OPERATION

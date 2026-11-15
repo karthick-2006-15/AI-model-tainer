@@ -26,10 +26,45 @@ logger = logging.getLogger("jarvis.core")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle manager."""
+    import asyncio
     logger.info("Initializing JARVIS Database & Subsystems...")
     init_db()
     logger.info("Database tables initialized successfully.")
+
+    # Start Always-On Voice Listener
+    try:
+        from modules.voice.listener import voice_listener
+        from api.websockets.hud_stream import manager as hud_manager
+
+        loop = asyncio.get_running_loop()
+
+        def broadcast_voice_event(cmd: str, resp: str):
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    hud_manager.broadcast({
+                        "type": "token_chunk",
+                        "chunk": f"[Voice Instruction: '{cmd}']\n\n{resp}",
+                        "tool_executed": "voice_interaction",
+                        "verified": True
+                    }),
+                    loop
+                )
+            except Exception as ex_b:
+                logger.debug(f"Broadcast voice event note: {ex_b}")
+
+        voice_listener.register_command_callback(broadcast_voice_event)
+        voice_listener.start()
+        logger.info("Always-On Voice Listener activated on startup.")
+    except Exception as e:
+        logger.warning(f"Could not auto-start voice listener: {e}")
+
     yield
+
+    try:
+        from modules.voice.listener import voice_listener
+        voice_listener.stop()
+    except Exception:
+        pass
     logger.info("JARVIS Core shutting down cleanly.")
 
 

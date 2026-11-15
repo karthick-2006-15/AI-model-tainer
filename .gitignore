@@ -43,6 +43,8 @@ storage/db/*.db
 storage/media/audio/*.wav
 storage/media/audio/*.mp3
 storage/media/audio/*.ogg
+storage/media/screenshots/*
+!storage/media/screenshots/.gitkeep
 storage/logs/*.log
 scratch/
 

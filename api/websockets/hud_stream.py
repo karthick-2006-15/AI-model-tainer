@@ -10,6 +10,7 @@ import json
 import logging
 from modules.automation.system import SystemMonitor
 from core.brain.orchestrator import brain_orchestrator
+from modules.voice.tts import tts_engine
 
 router = APIRouter(tags=["WebSockets"])
 logger = logging.getLogger("jarvis.websocket")
@@ -102,7 +103,8 @@ async def hud_websocket_endpoint(websocket: WebSocket):
                             })
                             await asyncio.sleep(0.4)
 
-                        # 3. Stream back final response chunk
+                        # 3. Stream back final response chunk and vocalize
+                        tts_engine.speak(result["response"])
                         await websocket.send_json({
                             "type": "token_chunk",
                             "chunk": result["response"],

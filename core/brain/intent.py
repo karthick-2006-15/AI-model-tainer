@@ -34,7 +34,8 @@ class IntentClassifier:
         r"\b(?:give\s+me\s+my\s+briefing|daily\s+briefing|morning\s+briefing)\b"
     ]
     APP_LAUNCH_PATTERNS = [
-        r"(?:open|launch|start|run)\s+(?:the\s+)?([a-zA-Z0-9_\-\s]+)",
+        r"\b(?:open|launch|start|run|bring\s+up|switch\s+to)\s+(?:the\s+)?(?:app\s+|application\s+)?([a-zA-Z0-9_\-\s]+)",
+        r"\b(?:open|launch|start|run)\s+up\s+(?:the\s+)?(?:app\s+|application\s+)?([a-zA-Z0-9_\-\s]+)",
     ]
     SYSTEM_METRIC_PATTERNS = [
         r"\b(?:check|show|what is|get)\s+(?:my\s+)?(?:laptop|pc|system|cpu|ram|memory|battery|storage|disk)\b",
@@ -80,9 +81,15 @@ class IntentClassifier:
         for p in self.APP_LAUNCH_PATTERNS:
             match = re.search(p, cleaned)
             if match:
-                app_name = match.group(1).strip()
-                # Ignore non-apps like "the door" or "my eyes"
-                if app_name and len(app_name) < 30 and not any(k in app_name for k in ["pdf", "file", "storage"]):
+                raw_app = match.group(1).strip()
+                # Clean conversational modifiers like "in window", "app", "please", "for me", etc.
+                app_name = re.sub(r"\s+(?:in\s+window|in\s+a\s+window|window|app|application|please|now|for\s+me)$", "", raw_app).strip()
+                app_name = re.sub(r"\s+(?:please|now|for\s+me)$", "", app_name).strip()
+                app_name = app_name.strip(" .,!?:;'\"")
+
+                # Ignore non-apps like file extensions (e.g. "report.pdf", "data.csv") unless it's file explorer
+                is_file_doc = any(app_name.endswith(ext) for ext in [".pdf", ".txt", ".docx", ".xlsx", ".csv", ".py", ".json"])
+                if app_name and len(app_name) < 40 and not is_file_doc and not any(k in app_name for k in ["pdf", "storage status"]):
                     params["app_name"] = app_name
                     return IntentClassification(
                         category=IntentCategory.SYSTEM_CONTROL,

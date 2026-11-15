@@ -31,6 +31,7 @@ beautifulsoup4>=4.12.3
 
 # Voice & Speech Engine
 SpeechRecognition>=3.10.0
+pyaudio>=0.2.14
 pyttsx3>=2.90
 edge-tts>=6.1.10
 

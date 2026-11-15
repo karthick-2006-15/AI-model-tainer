@@ -104,3 +104,22 @@ def test_voice_endpoints():
         interrupt_res = client.post("/api/voice/interrupt", json={"reason": "Test halt"})
         assert interrupt_res.status_code == 200
         assert interrupt_res.json()["interrupted"] is True
+
+
+def test_tts_clean_for_speech():
+    from modules.voice.tts import tts_engine
+    raw = "**Application** 'VS Code' [link](http://example.com) launched. • Status: `OK`"
+    cleaned = tts_engine.clean_for_speech(raw)
+    assert "**" not in cleaned
+    assert "`" not in cleaned
+    assert "http://example.com" not in cleaned
+    assert "link" in cleaned
+    assert "Application 'VS Code' link launched. Status: OK" in cleaned
+
+
+def test_voice_listener_registration():
+    from modules.voice.listener import VoiceListener
+    vl = VoiceListener()
+    called = []
+    vl.register_command_callback(lambda cmd, resp: called.append((cmd, resp)))
+    assert len(vl.on_command_callbacks) == 1

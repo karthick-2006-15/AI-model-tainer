@@ -7,6 +7,8 @@ import subprocess
 import os
 import shutil
 import logging
+import time
+import json
 from typing import List, Dict, Any, Optional
 import psutil
 
@@ -15,6 +17,7 @@ try:
     import win32gui
     import win32con
     import win32process
+    import win32api
     PYWIN32_AVAILABLE = True
 except ImportError:
     PYWIN32_AVAILABLE = False
@@ -23,11 +26,65 @@ logger = logging.getLogger("jarvis.automation.apps")
 
 
 class ApplicationManager:
+    # Dynamic catalog cache for Get-StartApps
+    _START_APPS_CACHE: Optional[List[Dict[str, str]]] = None
+    _START_APPS_CACHE_TIME: float = 0
+
+    WINDOW_TITLE_MAP = {
+        "vs code": ["Visual Studio Code", "Code"],
+        "vscode": ["Visual Studio Code", "Code"],
+        "code": ["Visual Studio Code", "Code"],
+        "visual studio code": ["Visual Studio Code", "Code"],
+        "whatsapp": ["WhatsApp"],
+        "spotify": ["Spotify"],
+        "chrome": ["Google Chrome", "Chrome"],
+        "google chrome": ["Google Chrome", "Chrome"],
+        "browser": ["Google Chrome", "Edge"],
+        "edge": ["Microsoft Edge", "Edge"],
+        "msedge": ["Microsoft Edge", "Edge"],
+        "notepad": ["Notepad"],
+        "notes": ["Notepad"],
+        "calculator": ["Calculator"],
+        "calc": ["Calculator"],
+        "settings": ["Settings"],
+        "camera": ["Camera"],
+        "paint": ["Paint"],
+        "clock": ["Clock", "Alarms & Clock"],
+        "timer": ["Clock", "Alarms & Clock"],
+        "excel": ["Excel"],
+        "word": ["Word"],
+        "powerpoint": ["PowerPoint"],
+        "ppt": ["PowerPoint"],
+        "chatgpt": ["ChatGPT"],
+        "claude": ["Claude"],
+        "canva": ["Canva"],
+        "capcut": ["CapCut"],
+        "explorer": ["File Explorer", "Explorer"],
+        "file explorer": ["File Explorer", "Explorer"],
+        "files": ["File Explorer", "Explorer"],
+        "terminal": ["Terminal", "PowerShell", "Command Prompt"],
+        "powershell": ["PowerShell"],
+        "cmd": ["Command Prompt"],
+        "task manager": ["Task Manager"],
+        "control panel": ["Control Panel"],
+        "vlc": ["VLC media player", "VLC"],
+        "discord": ["Discord"],
+        "telegram": ["Telegram"],
+        "slack": ["Slack"],
+        "steam": ["Steam"],
+    }
+
     KNOWN_APP_CANDIDATES = {
+        "whatsapp": [
+            "whatsapp:",
+            r"shell:AppsFolder\5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App",
+            os.path.expandvars(r"%LOCALAPPDATA%\WhatsApp\WhatsApp.exe")
+        ],
         "vs code": [
             os.path.expandvars(r"%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe"),
             r"C:\Program Files\Microsoft VS Code\Code.exe",
             r"C:\Program Files (x86)\Microsoft VS Code\Code.exe",
+            r"shell:AppsFolder\Microsoft.VisualStudioCode",
             shutil.which("code.cmd"),
             shutil.which("code")
         ],
@@ -35,6 +92,7 @@ class ApplicationManager:
             os.path.expandvars(r"%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe"),
             r"C:\Program Files\Microsoft VS Code\Code.exe",
             r"C:\Program Files (x86)\Microsoft VS Code\Code.exe",
+            r"shell:AppsFolder\Microsoft.VisualStudioCode",
             shutil.which("code.cmd"),
             shutil.which("code")
         ],
@@ -42,6 +100,7 @@ class ApplicationManager:
             os.path.expandvars(r"%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe"),
             r"C:\Program Files\Microsoft VS Code\Code.exe",
             r"C:\Program Files (x86)\Microsoft VS Code\Code.exe",
+            r"shell:AppsFolder\Microsoft.VisualStudioCode",
             shutil.which("code.cmd"),
             shutil.which("code")
         ],
@@ -49,74 +108,336 @@ class ApplicationManager:
             os.path.expandvars(r"%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe"),
             r"C:\Program Files\Microsoft VS Code\Code.exe",
             r"C:\Program Files (x86)\Microsoft VS Code\Code.exe",
+            r"shell:AppsFolder\Microsoft.VisualStudioCode",
             shutil.which("code.cmd"),
             shutil.which("code")
+        ],
+        "spotify": [
+            "spotify:",
+            r"shell:AppsFolder\Chrome._crx_pjibgcllelbfgfagdaldikeohf",
+            os.path.expandvars(r"%APPDATA%\Spotify\Spotify.exe")
         ],
         "chrome": [
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
             r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
             os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+            r"shell:AppsFolder\Chrome",
             shutil.which("chrome")
         ],
         "google chrome": [
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
             r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
             os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+            r"shell:AppsFolder\Chrome",
             shutil.which("chrome")
         ],
         "browser": [
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
             r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            "chrome.exe",
             "msedge.exe"
         ],
         "edge": [
+            "microsoft-edge:",
             r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-            shutil.which("msedge")
+            "msedge.exe",
+            r"shell:AppsFolder\Microsoft.MicrosoftEdge.Stable_8wekyb3d8bbwe!App"
         ],
         "msedge": [
+            "microsoft-edge:",
             r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
+            "msedge.exe"
         ],
-        "notepad": ["notepad.exe"],
-        "calculator": ["calc.exe"],
-        "calc": ["calc.exe"],
-        "terminal": ["wt.exe", "powershell.exe"],
-        "powershell": ["powershell.exe"],
-        "cmd": ["cmd.exe"],
-        "explorer": ["explorer.exe"],
-        "file explorer": ["explorer.exe"],
-        "files": ["explorer.exe"],
-        "spotify": ["spotify:"]
+        "notepad": [
+            "notepad.exe",
+            r"shell:AppsFolder\Microsoft.WindowsNotepad_8wekyb3d8bbwe!App"
+        ],
+        "notes": [
+            "notepad.exe",
+            r"shell:AppsFolder\Microsoft.WindowsNotepad_8wekyb3d8bbwe!App"
+        ],
+        "calculator": [
+            "calc.exe",
+            "calculator:",
+            r"shell:AppsFolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"
+        ],
+        "calc": [
+            "calc.exe",
+            "calculator:",
+            r"shell:AppsFolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"
+        ],
+        "camera": [
+            "microsoft.windows.camera:",
+            r"shell:AppsFolder\Microsoft.WindowsCamera_8wekyb3d8bbwe!App"
+        ],
+        "settings": [
+            "ms-settings:",
+            r"shell:AppsFolder\windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel"
+        ],
+        "paint": [
+            "mspaint.exe",
+            "ms-paint:",
+            r"shell:AppsFolder\Microsoft.Paint_8wekyb3d8bbwe!App"
+        ],
+        "clock": [
+            "ms-clock:",
+            r"shell:AppsFolder\Microsoft.WindowsAlarms_8wekyb3d8bbwe!App"
+        ],
+        "timer": [
+            "ms-clock:",
+            r"shell:AppsFolder\Microsoft.WindowsAlarms_8wekyb3d8bbwe!App"
+        ],
+        "terminal": [
+            "wt.exe",
+            "powershell.exe",
+            "cmd.exe"
+        ],
+        "powershell": [
+            "powershell.exe"
+        ],
+        "cmd": [
+            "cmd.exe"
+        ],
+        "command prompt": [
+            "cmd.exe"
+        ],
+        "explorer": [
+            "explorer.exe"
+        ],
+        "file explorer": [
+            "explorer.exe"
+        ],
+        "files": [
+            "explorer.exe"
+        ],
+        "task manager": [
+            "taskmgr.exe"
+        ],
+        "taskmgr": [
+            "taskmgr.exe"
+        ],
+        "control panel": [
+            "control.exe"
+        ],
+        "excel": [
+            "excel.exe",
+            r"shell:AppsFolder\Microsoft.Office.EXCEL.EXE.15",
+            r"C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE",
+            r"C:\Program Files (x86)\Microsoft Office\root\Office16\EXCEL.EXE"
+        ],
+        "word": [
+            "winword.exe",
+            r"shell:AppsFolder\Microsoft.Office.WINWORD.EXE.15",
+            r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
+            r"C:\Program Files (x86)\Microsoft Office\root\Office16\WINWORD.EXE"
+        ],
+        "powerpoint": [
+            "powerpnt.exe",
+            r"shell:AppsFolder\Microsoft.Office.POWERPNT.EXE.15",
+            r"C:\Program Files\Microsoft Office\root\Office16\POWERPNT.EXE",
+            r"C:\Program Files (x86)\Microsoft Office\root\Office16\POWERPNT.EXE"
+        ],
+        "ppt": [
+            "powerpnt.exe",
+            r"shell:AppsFolder\Microsoft.Office.POWERPNT.EXE.15",
+            r"C:\Program Files\Microsoft Office\root\Office16\POWERPNT.EXE"
+        ],
+        "chatgpt": [
+            r"shell:AppsFolder\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0!ChatGPT"
+        ],
+        "claude": [
+            r"shell:AppsFolder\Claude_pzs8sxrjxfjjc!Claude"
+        ],
+        "canva": [
+            r"shell:AppsFolder\com.canva.CanvaDesktop"
+        ],
+        "capcut": [
+            os.path.expandvars(r"%LOCALAPPDATA%\CapCut\Apps\8.1.1.3417\capcut.exe")
+        ],
+        "utorrent": [
+            os.path.expandvars(r"%APPDATA%\utorrent\uTorrent.exe")
+        ],
+        "vlc": [
+            "vlc.exe",
+            r"C:\Program Files\VideoLAN\VLC\vlc.exe",
+            r"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe"
+        ],
+        "discord": [
+            "discord:",
+            os.path.expandvars(r"%LOCALAPPDATA%\Discord\Update.exe")
+        ],
+        "telegram": [
+            "telegram:",
+            "telegram.exe"
+        ],
+        "slack": [
+            "slack:",
+            "slack.exe"
+        ],
+        "steam": [
+            "steam:",
+            "steam.exe"
+        ],
+        "zoom": [
+            "zoom:",
+            "zoom.exe"
+        ],
+        "store": [
+            "ms-windows-store:"
+        ],
+        "microsoft store": [
+            "ms-windows-store:"
+        ]
     }
 
     @classmethod
+    def _get_start_apps_catalog(cls) -> List[Dict[str, str]]:
+        """Queries and caches installed Windows applications via Get-StartApps."""
+        now = time.time()
+        if cls._START_APPS_CACHE is not None and (now - cls._START_APPS_CACHE_TIME) < 600:
+            return cls._START_APPS_CACHE
+        try:
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", "Get-StartApps | Select-Object Name, AppID | ConvertTo-Json"],
+                capture_output=True,
+                text=True,
+                timeout=6
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                data = json.loads(res.stdout)
+                if isinstance(data, dict):
+                    data = [data]
+                cls._START_APPS_CACHE = data
+                cls._START_APPS_CACHE_TIME = now
+                return data
+        except Exception as e:
+            logger.warning(f"Failed to query Get-StartApps: {e}")
+        return cls._START_APPS_CACHE or []
+
+    @classmethod
+    def _find_start_menu_shortcut(cls, query: str) -> Optional[str]:
+        """Searches Start Menu directories for .lnk shortcuts matching query."""
+        search_dirs = [
+            os.path.expandvars(r"%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs"),
+            os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs")
+        ]
+        q = query.lower().strip()
+        contains_match = None
+
+        for base in search_dirs:
+            if not os.path.exists(base):
+                continue
+            for root, _, files in os.walk(base):
+                for f in files:
+                    if not f.lower().endswith(".lnk"):
+                        continue
+                    name_without_ext = f[:-4].lower()
+                    full_path = os.path.join(root, f)
+                    if name_without_ext == q:
+                        return full_path
+                    elif q in name_without_ext and not contains_match:
+                        contains_match = full_path
+
+        return contains_match
+
+    @classmethod
+    def _resolve_app_candidate(cls, clean_name: str) -> Optional[str]:
+        """Resolves an application name to an executable path, protocol URI, or shell:AppsFolder AppID."""
+        # 1. Check preconfigured candidates
+        candidates = cls.KNOWN_APP_CANDIDATES.get(clean_name)
+        if candidates:
+            for cand in candidates:
+                if not cand:
+                    continue
+                if cand.startswith("shell:AppsFolder\\"):
+                    return cand
+                if cand.endswith(":") or "://" in cand:
+                    return cand
+                if os.path.isabs(cand) and os.path.exists(cand):
+                    return cand
+                if shutil.which(cand):
+                    return shutil.which(cand)
+
+        # 2. Check Start Menu .lnk shortcuts
+        lnk_path = cls._find_start_menu_shortcut(clean_name)
+        if lnk_path:
+            return lnk_path
+
+        # 3. Dynamic lookup in Windows StartApps catalog (UWP, Store, Desktop apps)
+        catalog = cls._get_start_apps_catalog()
+        q = clean_name.lower().strip()
+
+        # 3a. Exact match
+        for app in catalog:
+            if app.get("Name", "").lower() == q:
+                app_id = app.get("AppID", "")
+                if os.path.isabs(app_id) and os.path.exists(app_id):
+                    return app_id
+                if app_id.endswith(":") or "://" in app_id:
+                    return app_id
+                return f"shell:AppsFolder\\{app_id}"
+
+        # 3b. Word boundary / prefix match
+        for app in catalog:
+            name = app.get("Name", "").lower()
+            if name.startswith(q) or f" {q}" in name:
+                app_id = app.get("AppID", "")
+                if os.path.isabs(app_id) and os.path.exists(app_id):
+                    return app_id
+                if app_id.endswith(":") or "://" in app_id:
+                    return app_id
+                return f"shell:AppsFolder\\{app_id}"
+
+        # 3c. Substring match
+        for app in catalog:
+            name = app.get("Name", "").lower()
+            if q in name or name in q:
+                app_id = app.get("AppID", "")
+                if os.path.isabs(app_id) and os.path.exists(app_id):
+                    return app_id
+                if app_id.endswith(":") or "://" in app_id:
+                    return app_id
+                return f"shell:AppsFolder\\{app_id}"
+
+        # 4. Check system PATH
+        if shutil.which(clean_name):
+            return shutil.which(clean_name)
+        if shutil.which(clean_name + ".exe"):
+            return shutil.which(clean_name + ".exe")
+
+        return None
+
+    @classmethod
     def launch(cls, app_name: str, args: Optional[str] = None) -> Dict[str, Any]:
-        """Launches an application interactively using Windows ShellExecute or binary path."""
+        """Launches or focuses an application interactively across Win32, UWP, and protocol apps."""
         import re
         import shlex
+        import time
+
         clean_name = app_name.lower().strip()
-        # Strip trailing conversational terms like 'window', 'in window', 'app', 'application'
-        clean_name = re.sub(r"\s+(?:in\s+window|window|app|application)$", "", clean_name).strip()
+        # Strip conversational modifiers
+        clean_name = re.sub(r"\s+(?:in\s+window|in\s+a\s+window|window|app|application|please|now|for\s+me)$", "", clean_name).strip()
+        clean_name = re.sub(r"^(?:the\s+)", "", clean_name).strip()
+        clean_name = clean_name.strip(" .,!?:;'\"")
 
-        candidates = cls.KNOWN_APP_CANDIDATES.get(clean_name, [clean_name])
+        # 1. Check if application window is already running and bring it to foreground
+        title_candidates = cls.WINDOW_TITLE_MAP.get(clean_name, [clean_name])
+        for t_cand in title_candidates:
+            if cls.focus_window(t_cand):
+                logger.info(f"Application '{clean_name}' already open. Brought to foreground.")
+                return {
+                    "success": True,
+                    "app_name": app_name,
+                    "target": "active_window",
+                    "message": f"Application '{app_name}' is already running and has been brought to the foreground."
+                }
 
-        target = None
-        for cand in candidates:
-            if cand and (os.path.isabs(cand) and os.path.exists(cand)):
-                target = cand
-                break
-            elif cand and shutil.which(cand):
-                target = shutil.which(cand)
-                break
-            elif cand and cand.endswith(":"):
-                target = cand
-                break
-
+        # 2. Resolve application candidate
+        target = cls._resolve_app_candidate(clean_name)
         if not target:
             target = clean_name
 
-        # If launching VS Code without explicit arguments, default to the current workspace or --new-window
+        # If launching VS Code without explicit arguments, default to current workspace
         effective_args = args
         if not effective_args and clean_name in ("vs code", "vscode", "code", "visual studio code"):
             cwd = os.getcwd()
@@ -129,49 +450,81 @@ class ApplicationManager:
             if os.name == "nt":
                 launched = False
 
-                # Check if application window is already running and bring it to foreground
-                if clean_name in ("vs code", "vscode", "code", "visual studio code"):
-                    if cls.focus_window("Visual Studio Code") or cls.focus_window("Code"):
-                        logger.info(f"VS Code already open. Brought to foreground.")
-                        return {
-                            "success": True,
-                            "app_name": app_name,
-                            "target": target,
-                            "message": f"Application '{app_name}' focused successfully."
-                        }
-
-                # Method 1: Interactive Desktop Bridge via Windows Task Scheduler XML
-                # Explicitly allows execution on battery power (DisallowStartIfOnBatteries=false) and in interactive session
-                if target.endswith(".exe") or (shutil.which(target) and not target.endswith(":")):
-                    launched = cls._launch_interactive_desktop(target, effective_args)
-
-                # Method 2: os.startfile (ShellExecuteW)
-                if not launched:
+                # Handle shell:AppsFolder / UWP Apps (e.g. WhatsApp, Calculator, Settings, Canva, ChatGPT)
+                if target.startswith("shell:AppsFolder\\"):
                     try:
-                        if effective_args:
-                            os.startfile(target, "open", arguments=effective_args)
-                        else:
-                            os.startfile(target)
+                        os.startfile(target)
                         launched = True
                     except Exception as ex_start:
-                        logger.warning(f"os.startfile failed for '{target}': {ex_start}. Trying process fallback.")
+                        logger.warning(f"os.startfile failed for '{target}': {ex_start}. Trying explorer fallback.")
+                        subprocess.Popen(["explorer.exe", target])
+                        launched = True
 
-                # Method 3: Direct subprocess with detached process flags or explorer fallback
-                if not launched:
+                # Handle Protocol URIs (e.g. whatsapp:, spotify:, ms-settings:, calc:)
+                elif target.endswith(":") or "://" in target:
                     try:
-                        if target.endswith(".exe") or shutil.which(target):
+                        os.startfile(target)
+                        launched = True
+                    except Exception as ex_proto:
+                        logger.warning(f"os.startfile failed for protocol '{target}': {ex_proto}. Trying explorer fallback.")
+                        subprocess.Popen(["explorer.exe", target])
+                        launched = True
+
+                # Handle .lnk shortcuts
+                elif target.lower().endswith(".lnk"):
+                    try:
+                        os.startfile(target)
+                        launched = True
+                    except Exception as ex_lnk:
+                        logger.warning(f"os.startfile failed for lnk '{target}': {ex_lnk}.")
+                        subprocess.Popen(["explorer.exe", target])
+                        launched = True
+
+                # Handle Executable files (.exe)
+                elif target.lower().endswith(".exe") or (shutil.which(target) and not target.endswith(":")):
+                    # Method A: Interactive Desktop Bridge via Windows Task Scheduler XML
+                    launched = cls._launch_interactive_desktop(target, effective_args)
+
+                    # Method B: os.startfile fallback
+                    if not launched:
+                        try:
+                            if effective_args:
+                                os.startfile(target, "open", arguments=effective_args)
+                            else:
+                                os.startfile(target)
+                            launched = True
+                        except Exception as ex_start:
+                            logger.warning(f"os.startfile failed for '{target}': {ex_start}. Trying detached process.")
+
+                    # Method C: Detached Subprocess
+                    if not launched:
+                        try:
                             cmd_list = [target]
                             if effective_args:
                                 cmd_list.extend(shlex.split(effective_args))
                             subprocess.Popen(cmd_list, creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
                             launched = True
-                        else:
-                            subprocess.Popen(["explorer.exe", target])
-                            launched = True
-                    except Exception as ex_sub:
-                        logger.warning(f"subprocess fallback failed for '{target}': {ex_sub}. Trying explorer.")
+                        except Exception as ex_sub:
+                            logger.warning(f"subprocess fallback failed for '{target}': {ex_sub}.")
+
+                # Generic Fallback: explorer.exe
+                if not launched:
+                    try:
                         subprocess.Popen(["explorer.exe", target])
                         launched = True
+                    except Exception as ex_exp:
+                        logger.error(f"Explorer fallback failed for '{target}': {ex_exp}")
+                        return {
+                            "success": False,
+                            "error": f"Could not launch application '{app_name}'. Target: {target}"
+                        }
+
+                # Attempt focus after launch
+                time.sleep(0.6)
+                for t_cand in title_candidates:
+                    if cls.focus_window(t_cand):
+                        break
+
             else:
                 cmd_list = [target] + ([effective_args] if effective_args else [])
                 subprocess.Popen(cmd_list)

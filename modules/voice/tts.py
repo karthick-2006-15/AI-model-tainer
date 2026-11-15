@@ -8,6 +8,9 @@ Dual-tier architecture:
 import os
 import asyncio
 import logging
+import queue
+import threading
+import re
 from typing import Optional, List, Dict
 import edge_tts
 import pyttsx3
@@ -32,6 +35,60 @@ class TTSEngine:
     def __init__(self, default_voice: str = "en-US-ChristopherNeural"):
         self.default_voice = default_voice
         self._offline_engine: Optional[pyttsx3.Engine] = None
+        self._speech_queue: queue.Queue = queue.Queue()
+        self._worker_thread = threading.Thread(target=self._speech_worker, daemon=True)
+        self._worker_thread.start()
+
+    def _speech_worker(self):
+        """Dedicated background thread for audio output via Windows SAPI5."""
+        try:
+            engine = pyttsx3.init()
+            engine.setProperty("rate", 185)
+            # Find natural voice (Microsoft David or first English voice)
+            voices = engine.getProperty("voices")
+            for v in voices:
+                if "david" in v.name.lower():
+                    engine.setProperty("voice", v.id)
+                    break
+        except Exception as e:
+            logger.error(f"Failed to initialize SAPI5 speech worker: {e}")
+            return
+
+        while True:
+            text = self._speech_queue.get()
+            if text is None:
+                break
+            try:
+                engine.say(text)
+                engine.runAndWait()
+            except Exception as e:
+                logger.warning(f"Error during speech vocalization: {e}")
+            finally:
+                self._speech_queue.task_done()
+
+    @staticmethod
+    def clean_for_speech(text: str) -> str:
+        """Strips markdown syntax, links, and symbols for natural vocalization."""
+        if not text:
+            return ""
+        # Remove markdown bold, italic, code backticks, headers, tildes
+        t = re.sub(r"[*_#`~]", "", text)
+        # Convert markdown links [text](url) -> text
+        t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
+        t = re.sub(r"https?://\S+", "", t)
+        # Remove bullet points and lists
+        t = re.sub(r"^[ \t]*[•\-\*][ \t]+", "", t, flags=re.MULTILINE)
+        t = re.sub(r"[•\t]+", " ", t)
+        # Normalize whitespace
+        t = re.sub(r"\s+", " ", t).strip()
+        return t
+
+    def speak(self, text: str):
+        """Immediately queues speech to be spoken aloud through laptop speakers."""
+        cleaned = self.clean_for_speech(text)
+        if cleaned:
+            self._speech_queue.put(cleaned)
+            logger.info(f"Queued vocal response ({len(cleaned)} chars)")
 
     def get_supported_voices(self) -> Dict[str, List[Dict[str, str]]]:
         """Returns catalogue of supported voices categorized by language."""
