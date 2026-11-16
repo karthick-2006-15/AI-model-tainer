@@ -1,12 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
+import { JarvisAvatar } from './components/JarvisAvatar';
+import { FloatingAvatarWidget } from './components/FloatingAvatarWidget';
 import { CoreArcReactor } from './components/CoreArcReactor';
 import { TelemetryHUD } from './components/TelemetryHUD';
 import { ChatFeed } from './components/ChatFeed';
 import { MemoryExplorer } from './components/MemoryExplorer';
 import { TaskManagerHUD } from './components/TaskManagerHUD';
-import { AgentStateType, TelemetryData, ChatMessage } from './types/hud';
-import { ShieldCheck, Wifi, WifiOff, Volume2, VolumeX } from 'lucide-react';
+import { VoiceHub } from './components/VoiceHub';
+import { ComputerIntelView } from './components/ComputerIntelView';
+import { SettingsView } from './components/SettingsView';
+import { AgentStateType, TelemetryData, ChatMessage, AvatarThemeType, AvatarSizeType } from './types/hud';
+import { ShieldCheck, Wifi, WifiOff, Volume2, VolumeX, Sparkles, Disc, PictureInPicture2 } from 'lucide-react';
 
 export function App() {
   const [activeTab, setActiveTab] = useState('hud');
@@ -17,10 +22,21 @@ export function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [voiceOutputEnabled, setVoiceOutputEnabled] = useState(true);
   const [isListening, setIsListening] = useState(false);
+  const [audioAmplitude, setAudioAmplitude] = useState(0.0);
+  const [avatarTheme, setAvatarTheme] = useState<AvatarThemeType>('classic_cyan');
+  const [avatarSize, setAvatarSize] = useState<AvatarSizeType>('medium');
+  const [glowIntensity, setGlowIntensity] = useState(0.85);
+  const [scanlinesEnabled, setScanlinesEnabled] = useState(true);
+  const [centerMode, setCenterMode] = useState<'avatar' | 'reactor'>('avatar');
+
+  // Check URL query parameter ?mode=widget for frameless desktop launcher
+  const isWidgetParam = new URLSearchParams(window.location.search).get('mode') === 'widget';
+  const [isFloatingWidget, setIsFloatingWidget] = useState(isWidgetParam);
+
   const wsRef = useRef<WebSocket | null>(null);
   const recognitionRef = useRef<any>(null);
 
-  // Helper to vocalize responses directly in the browser via SpeechSynthesis
+  // Vocalize responses via SpeechSynthesis with synchronized lip-sync and audio amplitude
   const speakVoice = (text: string) => {
     if (!voiceOutputEnabled || !('speechSynthesis' in window)) return;
     try {
@@ -47,6 +63,28 @@ export function App() {
             v.name.includes('Microsoft'))
       );
       if (preferred) utterance.voice = preferred;
+
+      // Real-time lip-sync hooks
+      utterance.onstart = () => {
+        setAgentState('speaking');
+        setAudioAmplitude(0.7);
+      };
+
+      utterance.onboundary = () => {
+        // Dynamic syllable cadence
+        setAudioAmplitude(0.45 + Math.random() * 0.5);
+      };
+
+      utterance.onend = () => {
+        setAudioAmplitude(0.0);
+        setAgentState('idle');
+      };
+
+      utterance.onerror = () => {
+        setAudioAmplitude(0.0);
+        setAgentState('idle');
+      };
+
       window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.warn('Speech synthesis note:', e);
@@ -58,7 +96,6 @@ export function App() {
     let socket: WebSocket | null = null;
     let reconnectTimer: number | undefined;
 
-    // Use Vite proxy (/ws/hud) or explicit environment variable
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const envWs = (import.meta as any).env?.VITE_WS_URL;
     const wsUrl = envWs 
@@ -84,7 +121,6 @@ export function App() {
         socket.onclose = (event) => {
           if (isDisposed) return;
           setIsConnected(false);
-          // Only reconnect if disconnection was unexpected
           if (event.code !== 1000) {
             setStatusMessage('Connection lost. Reconnecting...');
             reconnectTimer = window.setTimeout(connect, 2500);
@@ -93,7 +129,6 @@ export function App() {
 
         socket.onerror = () => {
           if (isDisposed) return;
-          // Cleanly handle reconnect through onclose without noisy logs
         };
 
         socket.onmessage = (event) => {
@@ -105,6 +140,9 @@ export function App() {
             } else if (data.type === 'agent_state') {
               setAgentState(data.state);
               if (data.message) setStatusMessage(data.message);
+            } else if (data.type === 'avatar_state' && data.avatar) {
+              if (data.avatar.state) setAgentState(data.avatar.state);
+              if (data.avatar.theme) setAvatarTheme(data.avatar.theme);
             } else if (data.type === 'token_chunk') {
               const botMsg: ChatMessage = {
                 id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -158,7 +196,6 @@ export function App() {
         text: text
       }));
     } else {
-      // Fallback local echo if socket temporarily reconnecting
       setTimeout(() => {
         setMessages((prev) => [
           ...prev,
@@ -173,7 +210,13 @@ export function App() {
     }
   };
 
+  // Immediate barge-in: cancels any ongoing speech and prepares for user voice
   const toggleVoiceRecognition = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setAudioAmplitude(0.0);
+    }
+
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -258,6 +301,10 @@ export function App() {
   };
 
   const handleEmergencyStop = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setAudioAmplitude(0.0);
+    }
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'abort_task',
@@ -268,9 +315,32 @@ export function App() {
     setStatusMessage('EMERGENCY ABORT ACTIVE: All subtasks halted.');
   };
 
+  // If in pure floating widget mode (e.g. desktop app or popup window)
+  if (isFloatingWidget) {
+    return (
+      <div className="w-screen h-screen bg-transparent flex items-center justify-center overflow-hidden">
+        <FloatingAvatarWidget
+          state={agentState}
+          statusMessage={statusMessage}
+          theme={avatarTheme}
+          size={avatarSize}
+          audioAmplitude={audioAmplitude}
+          voiceOutputEnabled={voiceOutputEnabled}
+          isListening={isListening}
+          onExpandDashboard={() => setIsFloatingWidget(false)}
+          onToggleMic={toggleVoiceRecognition}
+          onToggleMute={() => setVoiceOutputEnabled(!voiceOutputEnabled)}
+          onChangeTheme={setAvatarTheme}
+          onChangeSize={setAvatarSize}
+          onClose={() => setIsFloatingWidget(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-screen bg-[#030712] text-slate-100 overflow-hidden scanline">
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation (7 Tabs) */}
       <Sidebar 
         activeTab={activeTab} 
         onSelectTab={setActiveTab} 
@@ -283,7 +353,7 @@ export function App() {
         <header className="h-14 border-b border-cyan-500/20 bg-[#040e21]/70 px-6 flex items-center justify-between backdrop-blur-md">
           <div className="flex items-center space-x-3">
             <span className="font-hud font-bold text-xs tracking-widest text-cyan-400">
-              MARK VII // OPERATING ENVIRONMENT
+              MARK VII // AI VISUAL IDENTITY & OPERATING ENVIRONMENT
             </span>
             <span className="h-3 w-px bg-cyan-700/50"></span>
             <div className="flex items-center space-x-1.5 text-xs text-slate-400">
@@ -293,6 +363,16 @@ export function App() {
           </div>
 
           <div className="flex items-center space-x-4">
+            {/* Toggle Floating Desktop Widget Mode */}
+            <button
+              onClick={() => setIsFloatingWidget(true)}
+              title="Switch to Floating Desktop Avatar Widget"
+              className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-[#08152e] border border-cyan-800/40 text-[11px] text-cyan-300 hover:border-cyan-400 transition"
+            >
+              <PictureInPicture2 className="w-3.5 h-3.5 text-cyan-400" />
+              <span>FLOATING WIDGET</span>
+            </button>
+
             {/* Voice Audio Feedback Toggle */}
             <button
               onClick={() => setVoiceOutputEnabled(!voiceOutputEnabled)}
@@ -312,6 +392,7 @@ export function App() {
               )}
             </button>
 
+            {/* Core Connection Status */}
             <div className="flex items-center space-x-2 text-xs">
               {isConnected ? (
                 <span className="flex items-center space-x-1.5 text-emerald-400 font-mono text-[11px]">
@@ -328,36 +409,126 @@ export function App() {
           </div>
         </header>
 
-        {/* Dashboard Grid Content */}
-        {activeTab === 'memory' ? (
+        {/* 7 Tab Dashboard Views */}
+        {activeTab === 'voice' ? (
           <div className="flex-1 p-6 overflow-hidden">
-            <MemoryExplorer />
+            <VoiceHub 
+              isListening={isListening}
+              onToggleMic={toggleVoiceRecognition}
+              voiceOutputEnabled={voiceOutputEnabled}
+              onToggleVoiceOutput={() => setVoiceOutputEnabled(!voiceOutputEnabled)}
+            />
           </div>
         ) : activeTab === 'tasks' ? (
           <div className="flex-1 p-6 overflow-hidden">
             <TaskManagerHUD />
           </div>
+        ) : activeTab === 'computer' ? (
+          <div className="flex-1 p-6 overflow-hidden">
+            <ComputerIntelView />
+          </div>
+        ) : activeTab === 'memory' ? (
+          <div className="flex-1 p-6 overflow-hidden">
+            <MemoryExplorer />
+          </div>
+        ) : activeTab === 'telemetry' ? (
+          <div className="flex-1 p-6 overflow-y-auto">
+            <div className="max-w-4xl mx-auto space-y-6">
+              <h2 className="font-hud font-bold text-lg text-cyan-300 tracking-wider">
+                LIVE SYSTEM MONITORING & TELEMETRY
+              </h2>
+              <TelemetryHUD telemetry={telemetry} />
+            </div>
+          </div>
+        ) : activeTab === 'settings' ? (
+          <div className="flex-1 p-6 overflow-hidden">
+            <SettingsView 
+              currentTheme={avatarTheme}
+              onChangeTheme={setAvatarTheme}
+              currentSize={avatarSize}
+              onChangeSize={setAvatarSize}
+              glowIntensity={glowIntensity}
+              onChangeGlow={setGlowIntensity}
+              scanlinesEnabled={scanlinesEnabled}
+              onToggleScanlines={() => setScanlinesEnabled(!scanlinesEnabled)}
+              onToggleFloatingMode={() => setIsFloatingWidget(true)}
+              isFloatingMode={isFloatingWidget}
+            />
+          </div>
         ) : (
+          /* Main Avatar & Core Holographic HUD Tab ('hud') */
           <div className="flex-1 p-4 lg:p-6 grid grid-cols-12 gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden">
-            {/* Left Column: Central Arc Reactor & Status */}
+            {/* Left Column: Central Animated Avatar / Core Reactor */}
             <div className="col-span-12 lg:col-span-7 flex flex-col justify-between bg-[#040e21]/40 border border-cyan-500/20 rounded-2xl p-6 backdrop-blur-sm hud-glow">
               <div className="flex justify-between items-center text-xs text-slate-400 font-hud">
-                <span>HOLOGRAPHIC CORE MATRIX</span>
-                <span className="text-cyan-400 font-mono">NODE_ID: WIN11_HOST</span>
+                <div className="flex items-center space-x-2">
+                  <span>HOLOGRAPHIC AVATAR MATRIX</span>
+                  <span className="text-cyan-400 font-mono">NODE_ID: WIN11_HOST</span>
+                </div>
+
+                {/* Switch between Avatar Face and Arc Reactor */}
+                <div className="flex items-center space-x-1 p-1 rounded-lg bg-[#020612] border border-cyan-500/30">
+                  <button
+                    onClick={() => setCenterMode('avatar')}
+                    className={`flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-hud transition ${
+                      centerMode === 'avatar'
+                        ? 'bg-cyan-950 border border-cyan-400 text-cyan-300'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>AVATAR FACE</span>
+                  </button>
+                  <button
+                    onClick={() => setCenterMode('reactor')}
+                    className={`flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-hud transition ${
+                      centerMode === 'reactor'
+                        ? 'bg-cyan-950 border border-cyan-400 text-cyan-300'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Disc className="w-3 h-3" />
+                    <span>ARC REACTOR</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="my-auto py-4">
-                <CoreArcReactor 
-                  state={agentState} 
-                  statusMessage={statusMessage}
-                  onMicClick={toggleVoiceRecognition}
-                />
+              {/* Centerpiece: Dynamic Animated Virtual AI Face or Arc Reactor */}
+              <div className="my-auto py-4 flex flex-col items-center justify-center">
+                {centerMode === 'avatar' ? (
+                  <div className="flex flex-col items-center">
+                    <JarvisAvatar 
+                      state={agentState}
+                      theme={avatarTheme}
+                      size={avatarSize}
+                      statusMessage={statusMessage}
+                      audioAmplitude={audioAmplitude}
+                      showScanlines={scanlinesEnabled}
+                      interactive={true}
+                      onClick={toggleVoiceRecognition}
+                    />
+                    <div className="mt-6 text-center max-w-sm">
+                      <p className="font-hud text-xs text-cyan-300 tracking-wider">
+                        {statusMessage}
+                      </p>
+                      <span className="text-[10px] text-slate-500 font-mono mt-1 block">
+                        Click face or press Push-to-Talk to speak
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <CoreArcReactor 
+                    state={agentState} 
+                    statusMessage={statusMessage}
+                    onMicClick={toggleVoiceRecognition}
+                  />
+                )}
               </div>
 
               {/* Quick Status Bar */}
               <div className="border-t border-cyan-500/10 pt-3 flex justify-between items-center text-[11px] text-slate-400">
-                <span>Wake-word: "Hey Jarvis" (or click Arc Reactor / Mic button)</span>
-                <span className="text-cyan-300">FastAPI + Speech Engine + WebSockets</span>
+                <span>Wake-word: "Hey Jarvis" (or click Avatar / Mic button)</span>
+                <span className="text-cyan-300">FastAPI + Lip-Sync Speech + WebSockets</span>
               </div>
             </div>
 

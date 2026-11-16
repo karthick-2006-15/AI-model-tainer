@@ -784,3 +784,32 @@ def tool_productivity_schedule_reminder(command: str) -> Dict[str, Any]:
     return productivity_manager.schedule_voice_reminder(voice_command=command)
 
 
+# 9. Avatar & Virtual AI Face Tools
+@jarvis_tool(name="avatar.set_state", description="Change avatar animation state (idle, listening, thinking, speaking, happy, confused, error, warning, sleeping, success).", permission_level=1)
+def tool_avatar_set_state(state: str, message: str = "") -> Dict[str, Any]:
+    from modules.avatar.avatar_engine import avatar_engine
+    avatar_engine.set_state(state, message or None)
+    return avatar_engine.get_state()
+
+
+@jarvis_tool(name="avatar.set_expression", description="Trigger a transient facial expression on the avatar face (happy, confused, alert, wink).", permission_level=1)
+def tool_avatar_set_expression(expression: str, duration: float = 3.0) -> Dict[str, Any]:
+    from modules.avatar.avatar_engine import avatar_engine
+    avatar_engine.trigger_expression(expression, duration)
+    return avatar_engine.get_state()
+
+
+@jarvis_tool(name="avatar.set_theme", description="Set avatar visual theme (classic_cyan, arc_gold, quantum_violet, matrix_emerald).", permission_level=1)
+def tool_avatar_set_theme(theme: str) -> Dict[str, Any]:
+    from modules.avatar.avatar_engine import avatar_engine
+    avatar_engine.update_settings({"theme": theme})
+    return avatar_engine.get_settings()
+
+
+@jarvis_tool(name="avatar.get_status", description="Get the visual status, eye metrics, and current animation state of the avatar face.", permission_level=1)
+def tool_avatar_get_status() -> Dict[str, Any]:
+    from modules.avatar.avatar_engine import avatar_engine
+    return avatar_engine.get_state()
+
+
+

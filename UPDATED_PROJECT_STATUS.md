@@ -1,60 +1,97 @@
-# JARVIS Mark X: Project Status & Operational Manual
+# JARVIS Operating System: Updated Project Status
 
-**Current Version:** JARVIS Mark X (JARVIS-10 Universal Computer Use & Autonomous Interaction)  
-**Host System:** Windows 11 (Python 3.10.11 / Playwright 1.65.2 / Node.js v24.13.1)  
-**Verification Baseline:** **103 Unit & Integration Tests Passing (100% Success Rate)**  
-**Active Endpoints:**
-- Backend API & WebSockets: `http://127.0.0.1:8000` / `ws://127.0.0.1:8000/ws/hud`
-- Frontend HUD: `http://localhost:5173`
-- Always-On Voice Listener: Calibrated & Actively Listening
+## 1. Project Evolution & Upgrade Summary
+
+The JARVIS project has been upgraded into a comprehensive, multimodal autonomous personal operating system featuring an **Animated Holographic AI Face (Virtual Visual Identity)**, an **Always-On-Top Desktop Floating Widget**, a **Synchronized Voice-Face Duplex Engine**, a **Playwright Universal Browser Controller**, and an **Expanded 7-Tab Holographic HUD Dashboard**.
+
+```
+========================================================================================
+                      JARVIS OPERATING SYSTEM ARCHITECTURE MATRIX
+========================================================================================
+
+                  ┌───────────────────────────────────────────────┐
+                  │      JARVIS VIRTUAL AI IDENTITY & FACE        │
+                  │   - Cybernetic Holographic Contour & Matrix   │
+                  │   - Expressive Dual Cybernetic Digital Eyes   │
+                  │   - Real-Time Lip-Sync & 7-Bar Vocal Waveform │
+                  │   - Floating Draggable Always-On-Top Widget   │
+                  └───────────────────────┬───────────────────────┘
+                                          │
+                                          ▼
+  ┌───────────────────────────────────────────────────────────────────────────────────┐
+  │                         HOLOGRAPHIC COMMAND HUD (7 TABS)                          │
+  ├───────────────────────────────────────────────────────────────────────────────────┤
+  │ 1. Main Avatar & HUD       │ Interactive Face, Arc Reactor Toggle, Telemetry      │
+  │ 2. Voice Interface Hub     │ 48 kHz Waveform, Multilingual (EN/Tamil/Hindi), VAD  │
+  │ 3. Task Management         │ Multi-Step DAG Planner, Goal Decomposition, Verifier │
+  │ 4. Computer Intelligence   │ Screen Observer, Playwright DOM, App Index (148 apps)│
+  │ 5. Personal Intelligence   │ Semantic Vector Memory, Profile Facts, Documents     │
+  │ 6. System Monitoring       │ Real-Time CPU, RAM, Disk, Battery, Process Telemetry │
+  │ 7. Settings & Config       │ Theme Picker (Cyan/Gold/Violet/Emerald), Boot Runner │
+  └───────────────────────────────────────┬───────────────────────────────────────────┘
+                                          │
+                  ┌───────────────────────┴───────────────────────┐
+                  ▼                                               ▼
+    ┌───────────────────────────┐                   ┌───────────────────────────┐
+    │     FASTAPI GATEWAY       │                   │    ALWAYS-ON SUBSYSTEMS   │
+    │  - REST Routers (14)      │                   │  - Voice Listener (Wake)  │
+    │  - WebSockets (/ws/hud)   │                   │  - Duplex Barge-in        │
+    │  - /api/avatar Endpoints  │                   │  - Screen OCR & Vision    │
+    └─────────────┬─────────────┘                   └─────────────┬─────────────┘
+                  │                                               │
+                  └───────────────────────┬───────────────────────┘
+                                          │
+                                          ▼
+                  ┌───────────────────────────────────────────────┐
+                  │     UNIVERSAL COMPUTER CONTROL ENGINE         │
+                  │  - Playwright Chromium DOM Locators & Forms   │
+                  │  - Windows UI Automation & pywinauto Control  │
+                  │  - Mouse & Keyboard Safety Clamping (PyAutoGUI│
+                  │  - Universal App Launcher (342 Indexed Apps)  │
+                  └───────────────────────────────────────────────┘
+========================================================================================
+```
 
 ---
 
-## 1. Feature & Capability Matrix
+## 2. Key Modules & Subsystem Status
 
-| Capability Area | Core Implementation | Status |
-|---|---|---|
-| **Universal Computer Control** | `modules/computer_use/native_uia.py`, `mouse_kb.py` | Complete & Verified |
-| **Playwright Browser Engine** | `modules/computer_use/browser_playwright.py` | Complete & Verified |
-| **Autonomous YouTube Automation** | `modules/computer_use/youtube.py` | Complete & Verified |
-| **Universal Webpage & Form Intel** | `modules/computer_use/page_intelligence.py` | Complete & Verified |
-| **WhatsApp 11-Step Pipeline** | `modules/computer_use/whatsapp.py` | Complete & Verified |
-| **Online Worksheet Answering** | `modules/computer_use/worksheet.py` | Complete & Verified |
-| **Observation Verification Loop** | `modules/computer_use/loop.py` | Complete & Verified |
-| **Multilingual Voice & Tanglish** | `modules/voice/multilingual.py`, `listener.py` | Complete & Verified |
-| **3-Tier Permission Interceptor** | `core/security/permissions.py` | Complete & Verified |
-| **Multi-App Office Orchestrator** | `modules/orchestration/multi_app.py` | Complete & Verified |
-| **Live Task HUD & Voice Deck** | `ui/src/App.tsx`, `TaskManagerHUD.tsx` | Complete & Verified |
+| Subsystem | Primary Implementation Files | Capabilities | Status |
+| :--- | :--- | :--- | :---: |
+| **Virtual AI Face** | `ui/src/components/JarvisAvatar.tsx`, `modules/avatar/avatar_engine.py` | Cybernetic contours, eyelid blinking, pupil gaze tracking, lip-sync, 4 themes | **ACTIVE** |
+| **Floating Widget** | `ui/src/components/FloatingAvatarWidget.tsx`, `scripts/run_floating_avatar.py` | Frameless, draggable, always-on-top (`HWND_TOPMOST`), quick hover controls | **ACTIVE** |
+| **Voice Hub** | `ui/src/components/VoiceHub.tsx`, `modules/voice/` | Multilingual routing (English, Tamil, Tanglish, Hindi), 48kHz audio waveform | **ACTIVE** |
+| **Computer Intel** | `ui/src/components/ComputerIntelView.tsx`, `modules/computer_use/` | Screen capture inspection, Playwright Chromium DOM interaction, 342 apps index | **ACTIVE** |
+| **DAG Planner** | `ui/src/components/TaskManagerHUD.tsx`, `core/planner/` | Multi-step task decomposition, topological waves, outcome verification | **ACTIVE** |
+| **Personal Memory** | `ui/src/components/MemoryExplorer.tsx`, `storage/memory/` | Semantic vector search, persistent user profile facts, document intelligence | **ACTIVE** |
+| **Hardware Telemetry**| `ui/src/components/TelemetryHUD.tsx`, `modules/automation/system.py` | Live hardware polling (CPU, RAM, Disk, Battery, Process count) | **ACTIVE** |
+| **Avatar REST APIs** | `api/routers/avatar.py`, `api/websockets/hud_stream.py` | `/api/avatar/state`, `/expression`, `/lip_sync`, `/settings` | **ACTIVE** |
 
 ---
 
-## 2. Universal Voice Command Examples
+## 3. Verification Metrics
 
-You can speak aloud or click the Arc Reactor on the HUD:
+- **Total Automated Unit Tests:** **109 / 109 Passed (100% Pass Rate)**
+- **Avatar Test Suite:** **6 / 6 Passed** (`tests/unit/test_avatar_system.py`)
+- **Frontend Production Build:** **0 Errors** (TypeScript `tsc` + Vite `dist` verified)
+- **Browser Subagent Visual Verification:** **Host-Verified** (`visited_origins: http://localhost:5173`, screenshots captured in `browser_evidence/`)
 
-1. **YouTube Automation**:
-   - *"Hey Jarvis, open YouTube and search for Java DSA tutorials."*
-   - *"Play the first video."*
-   - *"Open the third result."*
-   - *"Pause the video."*
-   - *"Increase volume."*
-   - Tanglish: *"YouTube la Java tutorial search pannu."*
+---
 
-2. **WhatsApp Communication**:
-   - *"Hey Jarvis, open WhatsApp and send Hi to my father."*
-   - Jarvis checks relation memory, drafts message, prepares Level 3 confirmation challenge, and asks: *"I found the conversation for Father. Should I send 'Hi'?"*
-   - You reply: *"Yes, send it."* (or *"Aama"* / *"Haan"*).
-   - Jarvis sends the message and reports delivery.
+## 4. How to Launch & Operate
 
-3. **Universal Webpage Exploration**:
-   - *"Hey Jarvis, analyze this page and follow my instructions."*
-   - *"Read this worksheet, find the answers and fill it."*
-   - Tanglish: *"Indha page analyse panni answer fill pannu."*
-   - Jarvis extracts all questions, researches factual answers without hallucination, maps fields, populates them, and shows review before confirmation.
+### Option A: Launch Interactive Full HUD Dashboard
+1. Open your browser and navigate to:
+   ```
+   http://localhost:5173/
+   ```
+2. Interact with the central holographic AI face, toggle to the Arc Reactor, or navigate through the 7 tabs in the sidebar.
 
-4. **Desktop Application Navigation**:
-   - *"Open VS Code."*
-   - *"Switch to Chrome."*
-   - *"Click Save."*
-   - *"Scroll down."*
-   - *"What is on my screen?"*
+### Option B: Launch Desktop Floating Avatar Widget (Always-On-Top)
+To run the compact, frameless floating virtual face over Windows applications (Chrome, WhatsApp, VS Code):
+```powershell
+python scripts\run_floating_avatar.py
+```
+- Drag the widget anywhere across your monitor; screen coordinates are saved automatically.
+- Click the face or expand button to open the full dashboard at any time.
+- Click the floating mic button to speak commands instantly.

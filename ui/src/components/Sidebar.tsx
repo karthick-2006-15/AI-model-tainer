@@ -2,11 +2,12 @@ import React from 'react';
 import { 
   ShieldAlert, 
   Brain, 
-  FolderSearch, 
-  Smartphone, 
+  Monitor, 
   Settings, 
   Terminal, 
-  Radio
+  Mic,
+  Activity,
+  Sparkles
 } from 'lucide-react';
 
 interface Props {
@@ -23,12 +24,13 @@ export const Sidebar: React.FC<Props> = ({
   mobileConnected = false
 }) => {
   const navItems = [
-    { id: 'hud', label: 'Core HUD', icon: Radio },
-    { id: 'tasks', label: 'Planner & DAG', icon: Terminal },
-    { id: 'memory', label: 'Memory & Facts', icon: Brain },
-    { id: 'files', label: 'File Intelligence', icon: FolderSearch },
-    { id: 'mobile', label: 'Mobile Device', icon: Smartphone },
-    { id: 'settings', label: 'Security & Config', icon: Settings },
+    { id: 'hud', label: 'Main Avatar & HUD', icon: Sparkles },
+    { id: 'voice', label: 'Voice Interface', icon: Mic },
+    { id: 'tasks', label: 'Task Management', icon: Terminal },
+    { id: 'computer', label: 'Computer Intelligence', icon: Monitor },
+    { id: 'memory', label: 'Personal Intelligence', icon: Brain },
+    { id: 'telemetry', label: 'System Monitoring', icon: Activity },
+    { id: 'settings', label: 'Settings & Config', icon: Settings },
   ];
 
   return (
