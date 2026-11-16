@@ -35,8 +35,6 @@ def find_browser_executable() -> Optional[str]:
 def set_window_always_on_top(window_title: str):
     """Sets matching window to HWND_TOPMOST using Windows User32 API."""
     user32 = ctypes.windll.user32
-    
-    # Callback to find window handle
     found_hwnd = None
 
     def enum_windows_callback(hwnd, extra):
@@ -45,7 +43,8 @@ def set_window_always_on_top(window_title: str):
         if length > 0:
             buff = ctypes.create_unicode_buffer(length + 1)
             user32.GetWindowTextW(hwnd, buff, length + 1)
-            if window_title.lower() in buff.value.lower():
+            title = buff.value.lower()
+            if window_title.lower() in title or "jarvis" in title:
                 found_hwnd = hwnd
                 return False
         return True
@@ -62,24 +61,26 @@ def set_window_always_on_top(window_title: str):
             0, 0, 0, 0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
         )
-        print(f"[JARVIS] Pinned window (HWND: {found_hwnd}) to Always-On-Top.")
+        print(f"[JARVIS] Pinned Avatar window (HWND: {found_hwnd}) to Always-On-Top on Desktop.")
         return True
     return False
 
 
-def launch_avatar_widget(url: str = "http://localhost:5173/?mode=widget", width: int = 240, height: int = 290):
+def launch_avatar_widget(url: str = "http://localhost:5173/?mode=widget", width: int = 320, height: int = 400):
     """Launches the floating avatar widget window."""
     browser_exe = find_browser_executable()
     if not browser_exe:
         print("[JARVIS] Error: No compatible browser found for app mode window.")
         return False
 
-    print(f"[JARVIS] Launching Floating Avatar Widget with {os.path.basename(browser_exe)}...")
+    print(f"[JARVIS] Spawning Floating Desktop Avatar with {os.path.basename(browser_exe)}...")
+    user_data_dir = os.path.join(os.path.expandvars("%TEMP%"), "jarvis_avatar_edge_profile")
     cmd = [
         browser_exe,
         f"--app={url}",
+        f"--user-data-dir={user_data_dir}",
         f"--window-size={width},{height}",
-        "--window-position=1620,740",
+        "--window-position=1550,600",
         "--disable-extensions",
         "--disable-background-networking"
     ]
@@ -87,13 +88,13 @@ def launch_avatar_widget(url: str = "http://localhost:5173/?mode=widget", width:
     proc = subprocess.Popen(cmd)
 
     # Allow window to map, then pin to topmost
-    time.sleep(1.5)
-    for _ in range(5):
+    time.sleep(1.8)
+    for _ in range(6):
         if set_window_always_on_top("jarvis"):
             break
         time.sleep(0.8)
 
-    print("[JARVIS] Floating Avatar Widget running. Press Ctrl+C in this terminal to exit.")
+    print("[JARVIS] Floating Avatar Face is now visible on your desktop screen.")
     try:
         proc.wait()
     except KeyboardInterrupt:

@@ -33,27 +33,28 @@ The **JARVIS Virtual AI Face** serves as the primary visual identity of the JARV
 
 ## 2. Anatomical & Visual Subsystem Breakdown
 
-### 2.1 Cranial Contour & Matrix Plate
-- **Geometry:** Ergonomic hexagonal cyber-contour with quadratic bezier arcs (`Q 125,25 190,70`) forming the cranial dome, temporal plates, and jaw taper.
-- **Surface Texture:** Dark translucent glass base (`fill="#030816"`, `opacity=0.85`) layered with a microscopic cyan matrix circuit grid (`pattern id="circuitGrid"` at 10px intervals).
-- **Temporal Sensors:** Side-mounted cybernetic ear brackets (`M 48,110...`) with luminous edge chamfers that visually ground the holographic volume.
+### 2.1 Cranial Contour, Polygonal Facet Mesh & Compass Ring
+- **Geometry & Faceting:** High-density cybernetic wireframe polygonal mesh with forehead triangulation, cheekbone facet planes (`polygon points="105,150 78,185 125,205 150,175"`), and jawline facet connectors meeting at the chin anchor with cybernetic air/power vents.
+- **Surface Texture & Glow:** Dark translucent glass base (`fill="#030816"`, `opacity=0.88`) with microscopic circuit grid and volumetric holographic SVG glow filter (`#avatarGlow` via `feGaussianBlur stdDeviation=2.5`).
+- **360° Cardinal Compass Reticles:** Outer compass orbital dial with degree marks (`000°`, `090°`, `180°`, `270°`), 4 corner framing brackets (`[ + ]`), and telemetry watermarks (`SYS.AI // MARK_VII`, `BIOMETRIC_MATRIX`).
+- **Temporal Sensors:** Angular cybernetic temple plates with luminous edge chamfers and vertex nodes.
 
 ### 2.2 Expressive Cybernetic Digital Eyes
 The eyes serve as the focal point of emotional expression, attention, and cognitive state communication:
-- **Outer Socket:** Elliptical tech reticles (`rx=20, ry=12`) with luminous boundary strokes.
-- **Iris Architecture:** Concentric circular reticles with counter-rotating tick marks and radial gradient falloff (`#ffffff` core -> `palette.primary` -> `palette.secondary` edge).
+- **Outer Socket:** Hexagonal tech reticles with precision corner chamfers.
+- **Iris Architecture:** Concentric circular reticles with counter-rotating tick marks (`animate-spin-slow` and `animate-spin`) and radial gradient falloff (`#ffffff` core -> `palette.primary` -> `palette.secondary` edge).
 - **Gaze & Saccades:** Smooth mouse cursor tracking across 2D screen coordinates (`gaze.x`, `gaze.y`) with dynamic pupil dilation:
-  - *Normal:* 3.2px radius
-  - *Listening:* 4.5px radius (dilated attention)
-  - *Thinking:* 2.8px radius with orbital tech crosshairs and micro-saccadic scanning shifts
+  - *Normal:* 3.8px radius
+  - *Listening:* 5.0px radius (dilated attention)
+  - *Thinking:* 3.0px radius with orbital tech crosshairs and micro-saccadic scanning shifts
 - **Dynamic Eyelids:** Dual parametric clipping masks simulating organic blinking:
-  - Natural blinking interval: randomly scheduled between 2.8s and 6.0s (160ms duration)
+  - Natural blinking interval: randomly scheduled between 2.6s and 6.0s (160ms duration)
   - *Sleeping:* Lowered to 90% closure with subtle standby respiration
   - *Happy / Success:* Lower eyelids lift into upward smiling crescent curves
 - **Eyebrow Posture:** Dynamic quadratic curves reflecting cognitive state:
   - *Neutral:* Horizontal level curve
-  - *Listening:* Slightly arched upwards (+0.1 rad)
-  - *Thinking:* Inner brow furrowed downwards (-0.15 rad)
+  - *Listening:* Arched upwards (+0.1 rad)
+  - *Thinking:* Furrowed analytical posture (-0.15 rad)
   - *Confused:* Asymmetric cocked left eyebrow (-0.3 rad) + furrowed right
   - *Error:* Sharply angled downward alert posture (-0.4 rad)
 
