@@ -67,6 +67,31 @@ class MouseKeyboardController:
             logger.error(f"Click failed at ({x}, {y}): {e}")
             return {"success": False, "error": str(e)}
 
+    def double_click(self, x: int, y: int) -> Dict[str, Any]:
+        """Performs a double-click at coordinates."""
+        return self.click(x=x, y=y, button="left", clicks=2)
+
+    def right_click(self, x: int, y: int) -> Dict[str, Any]:
+        """Performs a right-click at coordinates."""
+        return self.click(x=x, y=y, button="right", clicks=1)
+
+    def drag_and_drop(self, start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 0.5) -> Dict[str, Any]:
+        """Drags mouse from (start_x, start_y) to (end_x, end_y)."""
+        safe, err = self._check_safety()
+        if not safe:
+            return {"success": False, "error": err}
+
+        sx, sy = self._validate_coords(start_x, start_y)
+        ex, ey = self._validate_coords(end_x, end_y)
+        try:
+            pyautogui.moveTo(sx, sy)
+            pyautogui.dragTo(ex, ey, duration=duration, button="left")
+            logger.info(f"Dragged from ({sx}, {sy}) to ({ex}, {ey})")
+            return {"success": True, "start": (sx, sy), "end": (ex, ey)}
+        except Exception as e:
+            logger.error(f"Drag and drop error: {e}")
+            return {"success": False, "error": str(e)}
+
     def type_text(self, text: str, interval: float = 0.02) -> Dict[str, Any]:
         """Simulates human typing with configurable character interval."""
         safe, err = self._check_safety()

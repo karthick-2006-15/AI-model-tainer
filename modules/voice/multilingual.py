@@ -103,6 +103,15 @@ class MultilingualEngine:
                 msg = re.sub(r"\bmessage\b", "", msg).strip()
                 return f"send {msg} to {recipient}", lang
 
+            # YouTube search: "youtube la Java tutorial search pannu" -> "open youtube and search for Java tutorial"
+            m_yt = re.search(r"youtube\s+la\s+(.+?)\s+(?:search\s+pannu|search\s+seiyyi|paaru)", c_lower)
+            if m_yt:
+                return f"open youtube and search for {m_yt.group(1).strip()}", lang
+
+            # Page analysis: "indha page analyse panni answer fill pannu" -> "analyze this worksheet and fill answers"
+            if "page" in c_lower and "analyse" in c_lower and "fill" in c_lower:
+                return "explore this worksheet and fill answers", lang
+
             # Screen query: "screen la enna irukku" / "screen read pannu" -> "read what's on my screen"
             if "screen" in c_lower and any(w in c_lower for w in ["enna", "read", "paaru", "irukku"]):
                 return "read what is on my screen", lang
@@ -135,6 +144,15 @@ class MultilingualEngine:
                 msg = m_msg_hi.group(2).strip()
                 msg = re.sub(r"\bmessage\b", "", msg).strip()
                 return f"send {msg} to {recipient}", lang
+
+            # YouTube search: "youtube mein Java tutorial search karo" -> "open youtube and search for Java tutorial"
+            m_yt_hi = re.search(r"youtube\s+(?:mein|par)\s+(.+?)\s+(?:search\s+karo|chalao|dhoondo)", c_lower)
+            if m_yt_hi:
+                return f"open youtube and search for {m_yt_hi.group(1).strip()}", lang
+
+            # Page analysis: "yeh page analyze karke answers bharo"
+            if "page" in c_lower and ("analyze" in c_lower or "bharo" in c_lower):
+                return "explore this worksheet and fill answers", lang
 
             # Screen query: "screen par kya hai" / "screen padho" -> "read what's on my screen"
             if "screen" in c_lower and any(w in c_lower for w in ["kya", "padho", "dekho", "hai"]):

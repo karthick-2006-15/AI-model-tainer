@@ -99,6 +99,27 @@ class IntentClassifier:
     REMINDER_PATTERNS = [
         r"\b(?:remind me to|set a reminder to|schedule a reminder)\s+(.+)"
     ]
+    YOUTUBE_SEARCH_PATTERNS = [
+        r"\b(?:open\s+)?youtube(?:\s+and\s+search\s+(?:for\s+)?|\s+search\s+(?:for\s+)?)(.+)",
+        r"\bsearch\s+youtube\s+for\s+(.+)",
+        r"\byoutube\s+la\s+(.+?)\s+search\s+pannu\b",
+        r"\byoutube\s+mein\s+(.+?)\s+search\s+karo\b"
+    ]
+    YOUTUBE_PLAY_PATTERNS = [
+        r"\bplay\s+(?:the\s+)?(?:first|1st)\s+video\b",
+        r"\bplay\s+(?:the\s+)?(?:second|2nd)\s+video\b",
+        r"\b(?:open|play)\s+(?:the\s+)?(?:third|3rd)\s+(?:result|video)\b",
+        r"\b(?:open|play)\s+result\s+(\d+)\b"
+    ]
+    YOUTUBE_CONTROL_PATTERNS = [
+        r"\b(pause|resume|play|mute|unmute|fullscreen)\s*(?:the\s+)?(?:video|youtube)?\b",
+        r"\b(increase|decrease|raise|lower)\s+(?:the\s+)?volume\b"
+    ]
+    PAGE_ANALYZE_PATTERNS = [
+        r"\banalyze\s+(?:this\s+)?(?:webpage|page|website)(?:\s+and\s+follow\s+my\s+instructions)?\b",
+        r"\bindha\s+page\s+analyse\s+panni\b",
+        r"\bread\s+(?:this\s+)?(?:article|webpage|page)\b"
+    ]
 
     def classify(self, text: str) -> IntentClassification:
         cleaned = text.lower().strip()
@@ -137,6 +158,67 @@ class IntentClassifier:
                     confidence=0.96,
                     target_tool="productivity.schedule_reminder",
                     extracted_params=params
+                )
+
+        # 0d. YouTube Search & Navigation ("Open YouTube and search for Java DSA tutorials")
+        for p in self.YOUTUBE_SEARCH_PATTERNS:
+            m_yt = re.search(p, cleaned)
+            if m_yt:
+                query = m_yt.group(1).strip()
+                params["query"] = query
+                return IntentClassification(
+                    category=IntentCategory.RESEARCH,
+                    confidence=0.98,
+                    target_tool="youtube.search",
+                    extracted_params=params
+                )
+
+        # 0e. YouTube Video Selection ("Play the first video", "Open the third result")
+        for p in self.YOUTUBE_PLAY_PATTERNS:
+            m_yt_play = re.search(p, cleaned)
+            if m_yt_play:
+                idx = 1
+                if "third" in cleaned or "3rd" in cleaned:
+                    idx = 3
+                elif "second" in cleaned or "2nd" in cleaned:
+                    idx = 2
+                elif m_yt_play.groups() and m_yt_play.group(1):
+                    idx = int(m_yt_play.group(1))
+                params["result_index"] = idx
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.97,
+                    target_tool="youtube.play_video",
+                    extracted_params=params
+                )
+
+        # 0f. YouTube Playback Controls ("pause the video", "increase volume", "mute")
+        for p in self.YOUTUBE_CONTROL_PATTERNS:
+            m_yt_ctrl = re.search(p, cleaned)
+            if m_yt_ctrl:
+                act = m_yt_ctrl.group(1).lower()
+                if "increase" in act or "raise" in act:
+                    action_mapped = "volume_up"
+                elif "decrease" in act or "lower" in act:
+                    action_mapped = "volume_down"
+                else:
+                    action_mapped = act
+                params["action"] = action_mapped
+                return IntentClassification(
+                    category=IntentCategory.SYSTEM_CONTROL,
+                    confidence=0.96,
+                    target_tool="youtube.control_playback",
+                    extracted_params=params
+                )
+
+        # 0g. Universal Page Analysis ("analyze this page and follow my instructions")
+        for p in self.PAGE_ANALYZE_PATTERNS:
+            if re.search(p, cleaned):
+                return IntentClassification(
+                    category=IntentCategory.RESEARCH,
+                    confidence=0.95,
+                    target_tool="page.analyze",
+                    extracted_params={"url": ""}
                 )
 
         # 1. WhatsApp Messaging Check ("send Hi to my father", "send hello to dad")

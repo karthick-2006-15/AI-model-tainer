@@ -344,6 +344,12 @@ def tool_computer_capture_screen() -> Dict[str, Any]:
     return screen_intelligence.capture_screen()
 
 
+@jarvis_tool(name="computer.inspect_active_window", description="Identify the active application, window title, process name, and bounds.", permission_level=1)
+def tool_computer_inspect_active_window() -> Dict[str, Any]:
+    from modules.computer_use.screen import screen_intelligence
+    return screen_intelligence.get_active_window()
+
+
 @jarvis_tool(name="computer.get_active_window", description="Detect the currently active foreground window, application type, and boundaries.", permission_level=1)
 def tool_computer_get_active_window() -> Dict[str, Any]:
     from modules.computer_use.screen import screen_intelligence
@@ -356,10 +362,33 @@ def tool_computer_inspect_ui() -> Dict[str, Any]:
     return native_uia.inspect_active_window()
 
 
+@jarvis_tool(name="computer.find_element", description="Find an on-screen element or control by name, label, or control type.", permission_level=1)
+def tool_computer_find_element(name: str, control_type: str = "") -> Dict[str, Any]:
+    from modules.computer_use.native_uia import native_uia
+    return native_uia.find_element_info(name=name, control_type=control_type or None)
+
+
+@jarvis_tool(name="computer.click", description="Universal click tool: clicks at coordinates (x, y) or by accessible element name.", permission_level=2)
+def tool_computer_click(x: int = -1, y: int = -1, element_name: str = "", button: str = "left", clicks: int = 1) -> Dict[str, Any]:
+    from modules.computer_use.mouse_kb import mouse_kb
+    from modules.computer_use.loop import observation_loop
+    if element_name:
+        return observation_loop.click_interactive_element(element_name=element_name)
+    if x >= 0 and y >= 0:
+        return mouse_kb.click(x=x, y=y, button=button, clicks=clicks)
+    return {"success": False, "error": "Must provide either (x, y) coordinates or element_name."}
+
+
 @jarvis_tool(name="computer.click_element", description="Click an on-screen element by its accessible name or visual label.", permission_level=2)
 def tool_computer_click_element(element_name: str, control_type: str = "") -> Dict[str, Any]:
     from modules.computer_use.loop import observation_loop
     return observation_loop.click_interactive_element(element_name=element_name, control_type=control_type or None)
+
+
+@jarvis_tool(name="computer.type", description="Type text into the focused or target field (alias for computer.type_text).", permission_level=2)
+def tool_computer_type(text: str) -> Dict[str, Any]:
+    from modules.computer_use.mouse_kb import mouse_kb
+    return mouse_kb.type_text(text=text)
 
 
 @jarvis_tool(name="computer.type_text", description="Type text into the currently focused or targeted input field.", permission_level=2)
@@ -457,7 +486,55 @@ def tool_computer_verify_action(before_image_path: str, after_image_path: str) -
     return screen_intelligence.compare_visual_states(before_image_path, after_image_path)
 
 
-# 2. Browser & Web Interaction Tools
+# 2. Universal Browser Automation (Playwright)
+@jarvis_tool(name="browser.open", description="Open a URL in the Playwright browser controller (supports Chrome, Edge, Chromium).", permission_level=1)
+def tool_browser_open(url: str) -> Dict[str, Any]:
+    from modules.computer_use.browser_playwright import playwright_controller
+    return playwright_controller.open(url=url)
+
+
+@jarvis_tool(name="browser.inspect", description="Inspect DOM elements, headings, inputs, buttons, and links of the active browser page.", permission_level=1)
+def tool_browser_inspect(selector: str = "") -> Dict[str, Any]:
+    from modules.computer_use.browser_playwright import playwright_controller
+    return playwright_controller.inspect(selector=selector or None)
+
+
+@jarvis_tool(name="browser.search", description="Execute a search query on Google, YouTube, or DuckDuckGo via browser.", permission_level=1)
+def tool_browser_search(query: str, engine: str = "google") -> Dict[str, Any]:
+    from modules.computer_use.browser_playwright import playwright_controller
+    return playwright_controller.search(query=query, engine=engine)
+
+
+@jarvis_tool(name="browser.click", description="Click an element on the active browser page by CSS selector, text, or accessibility label.", permission_level=2)
+def tool_browser_click(selector_or_text: str) -> Dict[str, Any]:
+    from modules.computer_use.browser_playwright import playwright_controller
+    return playwright_controller.click(selector_or_text=selector_or_text)
+
+
+@jarvis_tool(name="browser.fill", description="Fill text into an input field or textarea on the active webpage.", permission_level=2)
+def tool_browser_fill(selector_or_name: str, value: str) -> Dict[str, Any]:
+    from modules.computer_use.browser_playwright import playwright_controller
+    return playwright_controller.fill(selector_or_name=selector_or_name, value=value)
+
+
+@jarvis_tool(name="browser.extract_text", description="Extract clean readable text or markdown content from the active webpage or selector.", permission_level=1)
+def tool_browser_extract_text(selector: str = "") -> Dict[str, Any]:
+    from modules.computer_use.browser_playwright import playwright_controller
+    return playwright_controller.extract_text(selector=selector or None)
+
+
+@jarvis_tool(name="browser.get_tabs", description="List all open tabs in the browser context with titles and URLs.", permission_level=1)
+def tool_browser_get_tabs() -> List[Dict[str, Any]]:
+    from modules.computer_use.browser_playwright import playwright_controller
+    return playwright_controller.get_tabs()
+
+
+@jarvis_tool(name="browser.screenshot", description="Capture a high-resolution screenshot of the active browser page.", permission_level=1)
+def tool_browser_screenshot(full_page: bool = False) -> Dict[str, Any]:
+    from modules.computer_use.browser_playwright import playwright_controller
+    return playwright_controller.screenshot(full_page=full_page)
+
+
 @jarvis_tool(name="browser.get_active_tab", description="Detect the currently open browser window and active web tab.", permission_level=1)
 def tool_browser_get_active_tab() -> Dict[str, Any]:
     from modules.computer_use.browser import browser_automation
@@ -486,6 +563,62 @@ def tool_browser_fill_field(field_name: str, value: str) -> Dict[str, Any]:
 def tool_browser_click_element(text_or_name: str) -> Dict[str, Any]:
     from modules.computer_use.browser import browser_automation
     return browser_automation.click_element(text_or_name=text_or_name)
+
+
+# 2b. Universal Page Intelligence Tools
+@jarvis_tool(name="page.analyze", description="Deep semantic analysis of the active webpage or URL: structure, word count, forms, buttons, tables.", permission_level=1)
+def tool_page_analyze(url: str = "") -> Dict[str, Any]:
+    from modules.computer_use.page_intelligence import page_intelligence
+    return page_intelligence.analyze_page(url=url or None)
+
+
+@jarvis_tool(name="page.find_element", description="Find elements on a webpage matching a query (text, ID, aria label) with bounds.", permission_level=1)
+def tool_page_find_element(query: str) -> Dict[str, Any]:
+    from modules.computer_use.page_intelligence import page_intelligence
+    return page_intelligence.find_element(query=query)
+
+
+@jarvis_tool(name="page.extract_questions", description="Extract worksheet or form questions, types, and options from active webpage.", permission_level=1)
+def tool_page_extract_questions(url: str = "") -> List[Dict[str, Any]]:
+    from modules.computer_use.page_intelligence import page_intelligence
+    return page_intelligence.extract_questions(url=url or None)
+
+
+@jarvis_tool(name="page.extract_tables", description="Extract data tables on active webpage into structured JSON headers and rows.", permission_level=1)
+def tool_page_extract_tables(table_index: int = 0) -> Dict[str, Any]:
+    from modules.computer_use.page_intelligence import page_intelligence
+    return page_intelligence.extract_tables(table_index=table_index)
+
+
+@jarvis_tool(name="page.fill_form", description="Populate form fields on active page using key-value mappings.", permission_level=2)
+def tool_page_fill_form(form_data: Dict[str, Any]) -> Dict[str, Any]:
+    from modules.computer_use.page_intelligence import page_intelligence
+    return page_intelligence.fill_form(form_data=form_data)
+
+
+@jarvis_tool(name="page.verify_form", description="Verify form completion and check that no required fields are missing before submission.", permission_level=1)
+def tool_page_verify_form() -> Dict[str, Any]:
+    from modules.computer_use.page_intelligence import page_intelligence
+    return page_intelligence.verify_form()
+
+
+# 2c. YouTube Automation Tools
+@jarvis_tool(name="youtube.search", description="Search YouTube for videos and extract top results with titles, creators, and links.", permission_level=1)
+def tool_youtube_search(query: str) -> Dict[str, Any]:
+    from modules.computer_use.youtube import youtube_automation
+    return youtube_automation.search(query=query)
+
+
+@jarvis_tool(name="youtube.play_video", description="Play a video from search results by index (e.g. 1 for first video, 3 for third) or URL.", permission_level=2)
+def tool_youtube_play_video(result_index: int = 1, video_url: str = "") -> Dict[str, Any]:
+    from modules.computer_use.youtube import youtube_automation
+    return youtube_automation.play_video(result_index=result_index, video_url=video_url or None)
+
+
+@jarvis_tool(name="youtube.control_playback", description="Control YouTube video playback: play, pause, toggle, mute, unmute, volume_up, volume_down, fullscreen.", permission_level=2)
+def tool_youtube_control_playback(action: str = "pause") -> Dict[str, Any]:
+    from modules.computer_use.youtube import youtube_automation
+    return youtube_automation.control_playback(action=action)
 
 
 # 3. WhatsApp Automation Tools

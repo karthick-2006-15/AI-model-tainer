@@ -187,10 +187,13 @@ class WhatsAppAutomation:
         return {
             "success": True,
             "status": "awaiting_authorization",
+            "requires_confirmation": True,
             "recipient": target_name,
             "message": message_text.strip(),
             "confirmation_prompt": prompt_text,
             "challenge": challenge,
+            "challenge_id": challenge["challenge_id"] if challenge else None,
+            "permission_level": 3,
             "instructions": "Confirm aloud with 'Yes' / 'Send' or deny with 'No' / 'Cancel'."
         }
 

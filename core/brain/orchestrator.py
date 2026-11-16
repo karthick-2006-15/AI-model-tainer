@@ -228,6 +228,32 @@ class BrainOrchestrator:
         elif tool_name == "productivity.schedule_reminder" and isinstance(result, dict):
             return result.get("message", "Reminder scheduled successfully.")
 
+        elif tool_name == "youtube.search" and isinstance(result, dict):
+            return result.get("summary", f"Search completed for '{result.get('query')}'.")
+
+        elif tool_name == "youtube.play_video" and isinstance(result, dict):
+            return result.get("report", "Playing requested YouTube video.")
+
+        elif tool_name == "youtube.control_playback" and isinstance(result, dict):
+            return result.get("report", f"Playback action '{result.get('action')}' executed.")
+
+        elif tool_name == "page.analyze" and isinstance(result, dict):
+            return result.get("summary", "Webpage analysis complete.")
+
+        elif tool_name == "browser.open" and isinstance(result, dict):
+            return f"Opened {result.get('title', result.get('url', 'webpage'))}."
+
+        elif tool_name == "computer.click" and isinstance(result, dict):
+            return f"Click action executed at ({result.get('x')}, {result.get('y')})." if "x" in result else f"Clicked {result.get('target', 'element')}."
+
+        elif tool_name == "computer.type" and isinstance(result, dict):
+            return f"Typed {result.get('char_count', 'text')} characters."
+
+        elif tool_name == "computer.find_element" and isinstance(result, dict):
+            if result.get("found"):
+                return f"Located element '{result.get('name')}' ({result.get('control_type')}) on active window."
+            return f"Element '{result.get('query')}' not detected."
+
         elif tool_name == "system.troubleshoot" and isinstance(result, dict):
             status = result.get("status", "System check complete.")
             alerts = result.get("alerts", [])

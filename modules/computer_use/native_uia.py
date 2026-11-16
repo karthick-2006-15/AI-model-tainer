@@ -146,6 +146,32 @@ class NativeUIAutomationEngine:
             logger.warning(f"Error searching control: {e}")
             return None
 
+    def find_element_info(self, name: str, control_type: Optional[str] = None) -> Dict[str, Any]:
+        """Finds an element by name/label and returns its bounds and control type."""
+        ctrl = self.find_control(name=name, control_type=control_type)
+        if not ctrl:
+            return {"found": False, "query": name, "error": f"Element '{name}' not found in active window."}
+
+        try:
+            rect = ctrl.BoundingRectangle
+            return {
+                "found": True,
+                "name": ctrl.Name or name,
+                "control_type": (ctrl.ControlTypeName or "").replace("Control", ""),
+                "bounds": {
+                    "left": rect.left,
+                    "top": rect.top,
+                    "right": rect.right,
+                    "bottom": rect.bottom,
+                    "center_x": rect.left + rect.width() // 2,
+                    "center_y": rect.top + rect.height() // 2,
+                    "width": rect.width(),
+                    "height": rect.height()
+                }
+            }
+        except Exception as e:
+            return {"found": False, "error": str(e)}
+
     def click_element_by_name(self, name: str, control_type: Optional[str] = None) -> Dict[str, Any]:
         """Finds an element by name and invokes or clicks it via UI Automation."""
         if not UIA_AVAILABLE:
