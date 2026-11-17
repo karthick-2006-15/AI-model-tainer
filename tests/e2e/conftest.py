@@ -20,6 +20,10 @@ from unittest.mock import patch, MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import shutil
+import modules.computer_use.app_manager as app_mgr_module
+app_mgr_module.shutil = shutil
+
 from api.main import app
 from core.config.settings import settings
 import storage.db.connection as db_conn
@@ -83,7 +87,8 @@ class E2EDeterministicLLMProvider(BaseLLMProvider):
             return LLMResponse(content=json.dumps(plan_json), model="mock-e2e-planner")
 
         # 2. Multi-turn conversational questions
-        if "rust" in full_text or "favourite programming language" in full_text or "favorite programming language" in full_text:
+        import re
+        if "favourite programming language" in full_text or "favorite programming language" in full_text:
             return LLMResponse(content="Your favourite programming language is Rust.", model="mock-e2e-model")
 
         if "birthday" in full_text:
@@ -164,11 +169,18 @@ def mock_voice_hardware():
     """
     duplex_controller.is_speaking = False
     duplex_controller._interrupt_event.clear()
+    duplex_controller.vad.reset()
+    duplex_controller.on_interrupted_callbacks.clear()
 
     with patch.object(voice_listener, "start", return_value=None), \
          patch.object(voice_listener, "stop", return_value=None), \
          patch("speech_recognition.Microphone", MagicMock()):
         yield
+
+    duplex_controller.is_speaking = False
+    duplex_controller._interrupt_event.clear()
+    duplex_controller.vad.reset()
+    duplex_controller.on_interrupted_callbacks.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -249,3 +261,15 @@ def ws_hud_client(app_client):
         # Second frame is avatar_state
         return cm, helper
     return _connect
+
+
+@pytest.fixture(autouse=True)
+def clean_security_state():
+    """Ensures each test starts with clear challenges and no active emergency stop."""
+    from core.security.permissions import permission_engine
+    permission_engine.reset_emergency_stop()
+    permission_engine._pending_challenges.clear()
+    yield
+    permission_engine.reset_emergency_stop()
+    permission_engine._pending_challenges.clear()
+

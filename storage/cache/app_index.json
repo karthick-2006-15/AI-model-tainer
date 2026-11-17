@@ -1,5 +1,5 @@
 {
-  "timestamp": 1794913075.2850642,
+  "timestamp": 1794922961.3978107,
   "count": 345,
   "apps": [
     {
@@ -98,9 +98,10 @@
         "utility"
       ],
       "last_launch_status": {
-        "last_launch": null,
+        "last_launch": 1794922961.3978107,
         "success_count": 0,
-        "failure_count": 0
+        "failure_count": 1,
+        "last_error": "Timeout waiting for window"
       }
     },
     {
@@ -200,7 +201,7 @@
       "launch_method": "direct_exec",
       "source": "system",
       "install_location": null,
-      "executable_path": "C:\\Program Files\\WindowsApps\\Microsoft.Paint_11.2605.81.0_x64__8wekyb3d8bbwe\\PaintApp\\mspaint.exe",
+      "executable_path": "C:\\Program Files\\WindowsApps\\Microsoft.Paint_11.2609.401.0_x64__8wekyb3d8bbwe\\PaintApp\\mspaint.exe",
       "description": "Windows Paint image editor",
       "categories": [
         "design",
@@ -1668,7 +1669,7 @@
       "aliases": [
         "instagram"
       ],
-      "target": "shell:AppsFolder\\Facebook.InstagramBeta_8xx8rvfyw5nnt!App",
+      "target": "shell:AppsFolder\\Chrome._crx_akpamiohjfjfndmaldlcfphjmp",
       "app_type": "uwp",
       "launch_method": "apps_folder",
       "source": "uwp_package",
@@ -3467,10 +3468,10 @@
       "aliases": [
         "spotify"
       ],
-      "target": "shell:AppsFolder\\Chrome._crx_pjibgcllelbfgfagdaldikeohf",
-      "app_type": "uwp",
-      "launch_method": "apps_folder",
-      "source": "uwp_package",
+      "target": "C:\\Users\\karth\\AppData\\Roaming\\Spotify\\Spotify.exe",
+      "app_type": "win32",
+      "launch_method": "direct_exec",
+      "source": "start_menu",
       "install_location": null,
       "executable_path": "C:\\Users\\karth\\AppData\\Roaming\\Spotify\\Spotify.exe",
       "description": "Installed Windows application (Spotify)",
@@ -5265,12 +5266,12 @@
       "aliases": [
         "snippingtool"
       ],
-      "target": "C:\\Program Files\\WindowsApps\\Microsoft.ScreenSketch_11.2608.41.0_x64__8wekyb3d8bbwe\\SnippingTool\\SnippingTool.exe",
+      "target": "C:\\Program Files\\WindowsApps\\Microsoft.ScreenSketch_11.2609.15.0_x64__8wekyb3d8bbwe\\SnippingTool\\SnippingTool.exe",
       "app_type": "win32",
       "launch_method": "direct_exec",
       "source": "app_paths",
-      "install_location": "C:\\Program Files\\WindowsApps\\Microsoft.ScreenSketch_11.2608.41.0_x64__8wekyb3d8bbwe\\SnippingTool",
-      "executable_path": "C:\\Program Files\\WindowsApps\\Microsoft.ScreenSketch_11.2608.41.0_x64__8wekyb3d8bbwe\\SnippingTool\\SnippingTool.exe",
+      "install_location": "C:\\Program Files\\WindowsApps\\Microsoft.ScreenSketch_11.2609.15.0_x64__8wekyb3d8bbwe\\SnippingTool",
+      "executable_path": "C:\\Program Files\\WindowsApps\\Microsoft.ScreenSketch_11.2609.15.0_x64__8wekyb3d8bbwe\\SnippingTool\\SnippingTool.exe",
       "description": "Registered App Path executable: SnippingTool.exe",
       "categories": [
         "general"
@@ -5287,12 +5288,12 @@
       "aliases": [
         "store"
       ],
-      "target": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsStore_22609.1401.8.0_x64__8wekyb3d8bbwe\\store.exe",
+      "target": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsStore_22610.1401.8.0_x64__8wekyb3d8bbwe\\store.exe",
       "app_type": "win32",
       "launch_method": "direct_exec",
       "source": "app_paths",
-      "install_location": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsStore_22609.1401.8.0_x64__8wekyb3d8bbwe",
-      "executable_path": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsStore_22609.1401.8.0_x64__8wekyb3d8bbwe\\store.exe",
+      "install_location": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsStore_22610.1401.8.0_x64__8wekyb3d8bbwe",
+      "executable_path": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsStore_22610.1401.8.0_x64__8wekyb3d8bbwe\\store.exe",
       "description": "Registered App Path executable: store.exe",
       "categories": [
         "utility"

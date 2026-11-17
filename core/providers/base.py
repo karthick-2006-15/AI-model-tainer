@@ -14,6 +14,14 @@ class ToolCallRequest:
     tool_name: str
     arguments: Dict[str, Any]
 
+    @property
+    def name(self) -> str:
+        return self.tool_name
+
+
+# Alias for compatibility with external specifications
+ToolCall = ToolCallRequest
+
 
 @dataclass
 class LLMResponse:
@@ -47,3 +55,7 @@ class BaseLLMProvider(ABC):
     ) -> AsyncGenerator[str, None]:
         """Streams text chunks token-by-token."""
         pass
+
+
+# Alias for compatibility with external specifications
+LLMProvider = BaseLLMProvider

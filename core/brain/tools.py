@@ -114,13 +114,71 @@ class ToolRegistry:
     def get_schemas(self) -> List[Dict[str, Any]]:
         return [tool.to_openai_schema() for tool in self._tools.values()]
 
-    async def execute(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """Executes a registered tool with exception handling and structured output."""
+    async def execute(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        device_id: Optional[str] = None,
+        raise_on_denied: bool = False
+    ) -> Dict[str, Any]:
+        """Executes a registered tool with central security interception, permission evaluation, and exception handling."""
+        from core.security.permissions import permission_engine
+
+        # 1. Central Kill-Switch: Verify Emergency Stop Status
+        if permission_engine.is_emergency_stopped():
+            err_msg = "Operation blocked: Global Emergency Stop is active."
+            logger.warning(f"Tool execution for '{tool_name}' blocked: Emergency Stop is active.")
+            if raise_on_denied:
+                raise PermissionError(err_msg)
+            return {
+                "success": False,
+                "error": err_msg,
+                "tool_name": tool_name,
+                "emergency_stopped": True,
+                "permission_denied": True
+            }
+
         metadata = self.get_tool(tool_name)
         if not metadata:
             return {
                 "success": False,
                 "error": f"Tool '{tool_name}' not found in registry."
+            }
+
+        # 2. Central Security Interceptor: Evaluate Permission Level & Challenges
+        target_resource = str(
+            arguments.get("target_resource")
+            or arguments.get("file_path")
+            or arguments.get("path")
+            or arguments.get("url")
+            or arguments.get("app_name")
+            or arguments.get("app_name_or_id")
+            or arguments.get("app_name_or_process")
+            or arguments.get("command")
+            or arguments.get("recipient")
+            or tool_name
+        )
+
+        allowed, reason, challenge = permission_engine.evaluate_request(
+            tool_name=tool_name,
+            permission_level=metadata.permission_level,
+            target_resource=target_resource,
+            arguments=arguments,
+            device_id=device_id
+        )
+
+        if not allowed:
+            err_msg = reason or "Operation not permitted by policy."
+            logger.warning(f"Tool '{tool_name}' blocked by permission engine: {err_msg}")
+            if raise_on_denied:
+                raise PermissionError(err_msg)
+            return {
+                "success": False,
+                "error": err_msg,
+                "tool_name": tool_name,
+                "permission_level": metadata.permission_level,
+                "permission_denied": True,
+                "challenge": challenge
             }
 
         try:
@@ -186,14 +244,6 @@ def tool_read_file_content(file_path: str, max_lines: int = 100) -> str:
     except Exception as e:
         return f"Could not read file: {e}"
 
-
-@jarvis_tool(name="open_application", description="Launch an authorized application or website by name.", permission_level=2)
-def tool_open_application(app_name: str) -> str:
-    from modules.automation.apps import ApplicationManager
-    res = ApplicationManager.launch(app_name)
-    if res.get("success"):
-        return res.get("message", f"Application '{app_name}' launched successfully.")
-    return f"Failed to launch '{app_name}': {res.get('error', 'unknown error')}"
 
 
 @jarvis_tool(name="execute_shell_command", description="Run an approved PowerShell or terminal command.", permission_level=3)
@@ -514,7 +564,7 @@ def tool_computer_open_application(app_name: str = "", app_name_or_id: str = "")
     return universal_app_manager.open_app(app_name_or_query=query)
 
 
-@jarvis_tool(name="open_application", description="Universal application launcher fast-path tool.", permission_level=2)
+@jarvis_tool(name="open_application", description="Launch an authorized application or website by name.", permission_level=2)
 def tool_open_application(app_name: str = "", app_name_or_id: str = "") -> Dict[str, Any]:
     from modules.computer_use.app_manager import universal_app_manager
     query = app_name or app_name_or_id

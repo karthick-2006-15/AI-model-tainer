@@ -222,6 +222,10 @@ def test_tc_mem_bc_05_sql_injection_defense(app_client):
 
 def test_tc_auto_bc_01_launch_non_existent_app():
     """TC-AUTO-BC-01: Launching non-existent application returns failure."""
+    import shutil
+    import modules.computer_use.app_manager as app_mgr_module
+    app_mgr_module.shutil = shutil
+
     mgr = UniversalAppManager()
     res = mgr.open_app("FakeApp_xyz_9999")
     assert res["success"] is False
@@ -423,6 +427,7 @@ def test_tc_sec_bc_05_ambiguous_voice_confirmation():
     approved, ch = permission_engine.resolve_voice_confirmation("maybe next week")
     assert approved is None
     assert ch is not None  # Challenge still intact in pending dictionary
+    permission_engine._pending_challenges.clear()
 
 
 # =============================================================================

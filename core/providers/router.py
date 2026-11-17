@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any, AsyncGenerator
 from core.config.settings import settings
 from core.providers.base import BaseLLMProvider, LLMResponse
 from core.providers.openai_provider import OpenAIProvider
+from core.providers.anthropic_provider import AnthropicProvider
 from core.providers.gemini_provider import GeminiProvider
 from core.providers.ollama_provider import OllamaProvider
 
@@ -52,7 +53,12 @@ class ModelRouter:
             model = "gpt-4o-mini" if fast_tier else "gpt-4o"
             return OpenAIProvider(api_key=settings.OPENAI_API_KEY, model=model)
 
-        # 2. Cloud Gemini
+        # 2. Cloud Anthropic Claude
+        if settings.ANTHROPIC_API_KEY:
+            model = "claude-3-5-haiku-20241022" if fast_tier else "claude-3-5-sonnet-20241022"
+            return AnthropicProvider(api_key=settings.ANTHROPIC_API_KEY, model=model)
+
+        # 3. Cloud Gemini
         if settings.GEMINI_API_KEY:
             model = "gemini-1.5-flash" if fast_tier else "gemini-1.5-pro"
             return GeminiProvider(api_key=settings.GEMINI_API_KEY, model=model)
