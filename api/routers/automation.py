@@ -27,7 +27,6 @@ class ShellCommandRequest(BaseModel):
     command: str
     cwd: Optional[str] = None
     timeout: Optional[int] = 30
-    skip_permission_check: Optional[bool] = False
 
 
 class OrganizeFolderRequest(BaseModel):
@@ -77,8 +76,7 @@ def execute_shell(request: ShellCommandRequest):
     return shell_sandbox.execute_command(
         command=request.command,
         working_directory=request.cwd,
-        timeout=request.timeout,
-        skip_permission_check=request.skip_permission_check or False
+        timeout=request.timeout
     )
 
 

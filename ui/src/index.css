@@ -65,3 +65,22 @@
   animation: scanline-laser 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+@keyframes music-bob {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-3.5px) rotate(0.8deg); }
+}
+
+.animate-music-groove {
+  animation: music-bob 0.75s ease-in-out infinite;
+}
+
+

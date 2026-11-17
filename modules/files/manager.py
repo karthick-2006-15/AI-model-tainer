@@ -42,13 +42,45 @@ class IntelligentFileManager:
     ) -> List[Dict[str, Any]]:
         """
         Recursively searches directories for files matching query in name or path.
-        Filters by extension and excludes virtual environments, git, and node_modules.
+        Resolves well-known user folders (Downloads, Desktop, Documents, etc.),
+        supports wildcard patterns (*.pdf), filters by extension, and excludes build/cache dirs.
         """
-        search_root = os.path.abspath(root_dir) if root_dir else self.project_root
+        import fnmatch
+
+        user_home = os.path.expanduser("~")
+        special_folders = {
+            "downloads": [os.path.join(user_home, "Downloads"), os.path.join(user_home, "OneDrive", "Downloads")],
+            "desktop": [os.path.join(user_home, "OneDrive", "Desktop"), os.path.join(user_home, "Desktop")],
+            "documents": [os.path.join(user_home, "OneDrive", "Documents"), os.path.join(user_home, "Documents")],
+            "pictures": [os.path.join(user_home, "Pictures"), os.path.join(user_home, "OneDrive", "Pictures")],
+            "videos": [os.path.join(user_home, "Videos")],
+            "music": [os.path.join(user_home, "Music")],
+        }
+
+        search_root = None
+        if root_dir:
+            cleaned = os.path.expandvars(os.path.expanduser(root_dir.strip())).strip("'\"")
+            lower_name = cleaned.lower()
+            if lower_name in special_folders:
+                for candidate in special_folders[lower_name]:
+                    if os.path.exists(candidate):
+                        search_root = candidate
+                        break
+            if not search_root:
+                if os.path.isabs(cleaned) and os.path.exists(cleaned):
+                    search_root = cleaned
+                else:
+                    cand = os.path.abspath(cleaned)
+                    if os.path.exists(cand):
+                        search_root = cand
+
+        if not search_root:
+            search_root = self.project_root
+
         if not os.path.exists(search_root):
             return []
 
-        q = query.lower().strip()
+        q = (query or "").lower().strip()
         exts = [e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions] if extensions else None
 
         results = []
@@ -57,11 +89,21 @@ class IntelligentFileManager:
         for root, dirs, files in os.walk(search_root):
             dirs[:] = [d for d in dirs if d not in ignore_dirs]
             for file in files:
+                file_lower = file.lower()
                 _, ext = os.path.splitext(file)
                 if exts and ext.lower() not in exts:
                     continue
 
-                if not q or q in file.lower():
+                # Match wildcard query, extension, or substring
+                matched = False
+                if not q:
+                    matched = True
+                elif "*" in q or "?" in q:
+                    matched = fnmatch.fnmatch(file_lower, q)
+                else:
+                    matched = (q in file_lower)
+
+                if matched:
                     full_p = os.path.join(root, file)
                     try:
                         stat = os.stat(full_p)

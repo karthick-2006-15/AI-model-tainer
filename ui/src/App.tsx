@@ -10,7 +10,8 @@ import { TaskManagerHUD } from './components/TaskManagerHUD';
 import { VoiceHub } from './components/VoiceHub';
 import { ComputerIntelView } from './components/ComputerIntelView';
 import { SettingsView } from './components/SettingsView';
-import { AgentStateType, TelemetryData, ChatMessage, AvatarThemeType, AvatarSizeType } from './types/hud';
+import { MusicCard } from './components/MusicCard';
+import { AgentStateType, TelemetryData, ChatMessage, AvatarThemeType, AvatarSizeType, SpotifyPlaybackState } from './types/hud';
 import { ShieldCheck, Wifi, WifiOff, Volume2, VolumeX, Sparkles, Disc, PictureInPicture2 } from 'lucide-react';
 
 export function App() {
@@ -32,6 +33,93 @@ export function App() {
   // Check URL query parameter ?mode=widget for frameless desktop launcher
   const isWidgetParam = new URLSearchParams(window.location.search).get('mode') === 'widget';
   const [isFloatingWidget, setIsFloatingWidget] = useState(isWidgetParam);
+
+  // Live Spotify Desktop Playback Telemetry
+  const [spotifyState, setSpotifyState] = useState<SpotifyPlaybackState | null>(null);
+
+  // Poll Spotify playback telemetry every 3 seconds
+  useEffect(() => {
+    let isDisposed = false;
+    const fetchSpotify = async () => {
+      try {
+        const res = await fetch('/api/spotify/state');
+        if (res.ok && !isDisposed) {
+          const data = await res.json();
+          setSpotifyState(data);
+        }
+      } catch (_) {}
+    };
+
+    fetchSpotify();
+    const interval = setInterval(fetchSpotify, 2800);
+    return () => {
+      isDisposed = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const handleMusicPlayPause = async () => {
+    try {
+      if (spotifyState?.is_playing) {
+        await fetch('/api/spotify/pause', { method: 'POST' });
+        setSpotifyState((prev) => prev ? { ...prev, is_playing: false, is_paused: true } : null);
+      } else {
+        await fetch('/api/spotify/resume', { method: 'POST' });
+        setSpotifyState((prev) => prev ? { ...prev, is_playing: true, is_paused: false } : null);
+      }
+    } catch (e) {
+      console.warn('Music control error:', e);
+    }
+  };
+
+  const handleMusicNext = async () => {
+    try {
+      const res = await fetch('/api/spotify/next', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.current_track) {
+          setSpotifyState((prev) => prev ? { ...prev, track: data.current_track, is_playing: true } : null);
+        }
+      }
+    } catch (e) {
+      console.warn('Music next error:', e);
+    }
+  };
+
+  const handleMusicPrevious = async () => {
+    try {
+      const res = await fetch('/api/spotify/previous', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.current_track) {
+          setSpotifyState((prev) => prev ? { ...prev, track: data.current_track, is_playing: true } : null);
+        }
+      }
+    } catch (e) {
+      console.warn('Music previous error:', e);
+    }
+  };
+
+  const handleMusicVolumeChange = async (vol: number) => {
+    setSpotifyState((prev) => prev ? { ...prev, volume: vol } : null);
+    try {
+      await fetch('/api/spotify/volume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: vol })
+      });
+    } catch (e) {
+      console.warn('Volume set error:', e);
+    }
+  };
+
+  const handleOpenSpotify = async () => {
+    try {
+      await fetch('/api/spotify/open', { method: 'POST' });
+    } catch (e) {
+      console.warn('Open Spotify error:', e);
+    }
+  };
 
   const wsRef = useRef<WebSocket | null>(null);
   const recognitionRef = useRef<any>(null);
@@ -100,7 +188,9 @@ export function App() {
     const envWs = (import.meta as any).env?.VITE_WS_URL;
     const wsUrl = envWs 
       ? `${envWs}/ws/hud`
-      : `${protocol}//${window.location.host}/ws/hud`;
+      : (window.location.port === '5173' 
+          ? 'ws://127.0.0.1:8000/ws/hud' 
+          : `${protocol}//${window.location.host}/ws/hud`);
 
     const connect = () => {
       if (isDisposed) return;
@@ -152,6 +242,14 @@ export function App() {
               };
               setMessages((prev) => [...prev, botMsg]);
               speakVoice(data.chunk);
+            } else if (data.type === 'chat_message') {
+              const chatMsg: ChatMessage = {
+                id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                sender: data.sender || 'user',
+                content: data.content,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              };
+              setMessages((prev) => [...prev, chatMsg]);
             }
           } catch (e) {
             // Silently drop invalid packets
@@ -505,6 +603,7 @@ export function App() {
                       audioAmplitude={audioAmplitude}
                       showScanlines={scanlinesEnabled}
                       interactive={true}
+                      isMusicPlaying={spotifyState?.is_playing}
                       onClick={toggleVoiceRecognition}
                     />
                     <div className="mt-6 text-center max-w-sm">
@@ -532,15 +631,27 @@ export function App() {
               </div>
             </div>
 
-            {/* Right Column: Real-Time Telemetry & Chat Command Feed */}
-            <div className="col-span-12 lg:col-span-5 flex flex-col space-y-6 overflow-hidden">
+            {/* Right Column: Real-Time Telemetry & Chat Command Feed & Music Card */}
+            <div className="col-span-12 lg:col-span-5 flex flex-col space-y-4 overflow-hidden">
               {/* Top Right: System Telemetry HUD */}
               <div className="shrink-0">
                 <TelemetryHUD telemetry={telemetry} />
               </div>
 
+              {/* Middle Right: Spotify Music Controller Card */}
+              <div className="shrink-0">
+                <MusicCard 
+                  playbackState={spotifyState}
+                  onPlayPause={handleMusicPlayPause}
+                  onNext={handleMusicNext}
+                  onPrevious={handleMusicPrevious}
+                  onVolumeChange={handleMusicVolumeChange}
+                  onOpenSpotify={handleOpenSpotify}
+                />
+              </div>
+
               {/* Bottom Right: Real-time Command & Interaction Feed */}
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <ChatFeed 
                   messages={messages} 
                   onSendMessage={handleSendMessage} 

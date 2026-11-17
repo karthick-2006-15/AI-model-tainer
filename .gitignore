@@ -45,8 +45,13 @@ storage/media/audio/*.mp3
 storage/media/audio/*.ogg
 storage/media/screenshots/*
 !storage/media/screenshots/.gitkeep
+storage/documents/*
+!storage/documents/.gitkeep
 storage/logs/*.log
+# Scratch & Avatar Profiles
 scratch/
+.avatar_chrome_data/
+scripts/*.png
 
 # Node / UI
 ui/node_modules/
@@ -63,5 +68,6 @@ $RECYCLE.BIN/
 
 # Logs & Cache
 *.log
+@AutomationLog.txt
 logs/
 .pytest_cache/

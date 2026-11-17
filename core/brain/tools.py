@@ -315,6 +315,73 @@ async def tool_control_spotify_media(action: str = "play_pause", query: str = ""
     return await spotify_integration.execute(action, {"query": query})
 
 
+@jarvis_tool(name="spotify.play", description="Search and play a song, artist, album, or playlist on the Spotify desktop application.", permission_level=1)
+def tool_spotify_play(query: str = "") -> Dict[str, Any]:
+    from modules.media.spotify_controller import spotify_controller
+    return spotify_controller.play_track(query)
+
+
+@jarvis_tool(name="spotify.pause", description="Pause music playback on Spotify.", permission_level=1)
+def tool_spotify_pause() -> Dict[str, Any]:
+    from modules.media.spotify_controller import spotify_controller
+    return spotify_controller.pause_playback()
+
+
+@jarvis_tool(name="spotify.resume", description="Resume music playback on Spotify.", permission_level=1)
+def tool_spotify_resume() -> Dict[str, Any]:
+    from modules.media.spotify_controller import spotify_controller
+    return spotify_controller.resume_playback()
+
+
+@jarvis_tool(name="spotify.next", description="Skip to the next track on Spotify.", permission_level=1)
+def tool_spotify_next() -> Dict[str, Any]:
+    from modules.media.spotify_controller import spotify_controller
+    return spotify_controller.next_track()
+
+
+@jarvis_tool(name="spotify.previous", description="Return to the previous track on Spotify.", permission_level=1)
+def tool_spotify_previous() -> Dict[str, Any]:
+    from modules.media.spotify_controller import spotify_controller
+    return spotify_controller.previous_track()
+
+
+@jarvis_tool(name="spotify.get_current_track", description="Get currently playing track title, artist, album, and duration on Spotify.", permission_level=1)
+def tool_spotify_get_current_track() -> Dict[str, Any]:
+    from modules.media.spotify_controller import spotify_controller
+    return spotify_controller.get_current_track()
+
+
+@jarvis_tool(name="spotify.get_playback_state", description="Get complete Spotify playback state (is_playing, is_paused, volume, active device, track).", permission_level=1)
+def tool_spotify_get_playback_state() -> Dict[str, Any]:
+    from modules.media.spotify_controller import spotify_controller
+    return spotify_controller.get_playback_state()
+
+
+@jarvis_tool(name="spotify.set_volume", description="Set Spotify audio volume level (0 to 100).", permission_level=1)
+def tool_spotify_set_volume(level: int = 50) -> Dict[str, Any]:
+    from modules.media.spotify_controller import spotify_controller
+    return spotify_controller.set_volume(level)
+
+
+@jarvis_tool(name="spotify.open", description="Open or focus the Windows Spotify desktop application.", permission_level=1)
+def tool_spotify_open() -> Dict[str, Any]:
+    from modules.media.spotify_controller import spotify_controller
+    return spotify_controller.open_spotify()
+
+
+@jarvis_tool(name="spotify.search", description="Search songs, artists, albums, or playlists on Spotify.", permission_level=1)
+def tool_spotify_search(query: str, search_type: str = "track") -> Dict[str, Any]:
+    from modules.media.spotify_controller import spotify_controller
+    if search_type == "artist":
+        return spotify_controller.search_artist(query)
+    elif search_type == "album":
+        return spotify_controller.search_album(query)
+    elif search_type == "playlist":
+        return spotify_controller.search_playlist(query)
+    return spotify_controller.search_track(query)
+
+
+
 @jarvis_tool(name="analyze_daily_productivity", description="Compute personal daily developer productivity score, flow analysis, and objective fulfillment report.", permission_level=1)
 def tool_analyze_daily_productivity() -> Dict[str, Any]:
     from modules.integrations.productivity import productivity_analyzer

@@ -36,7 +36,7 @@ class ApplicationManager:
         "code": ["Visual Studio Code", "Code"],
         "visual studio code": ["Visual Studio Code", "Code"],
         "whatsapp": ["WhatsApp"],
-        "spotify": ["Spotify"],
+        "spotify": ["Spotify", "Spotify Premium", "Spotify Free"],
         "chrome": ["Google Chrome", "Chrome"],
         "google chrome": ["Google Chrome", "Chrome"],
         "browser": ["Google Chrome", "Edge"],
@@ -72,6 +72,7 @@ class ApplicationManager:
         "telegram": ["Telegram"],
         "slack": ["Slack"],
         "steam": ["Steam"],
+        "whatsapp": ["WhatsApp"],
     }
 
     KNOWN_APP_CANDIDATES = {
@@ -113,9 +114,10 @@ class ApplicationManager:
             shutil.which("code")
         ],
         "spotify": [
+            os.path.expandvars(r"%APPDATA%\Spotify\Spotify.exe"),
+            r"C:\Users\karth\AppData\Roaming\Spotify\Spotify.exe",
             "spotify:",
-            r"shell:AppsFolder\Chrome._crx_pjibgcllelbfgfagdaldikeohf",
-            os.path.expandvars(r"%APPDATA%\Spotify\Spotify.exe")
+            r"shell:AppsFolder\Chrome._crx_pjibgcllelbfgfagdaldikeohf"
         ],
         "chrome": [
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -634,12 +636,9 @@ class ApplicationManager:
     def list_open_windows(cls) -> List[Dict[str, Any]]:
         """Returns all visible desktop application windows across the interactive user desktop."""
         windows = []
-        if not PYWIN32_AVAILABLE:
-            return windows
-
-        # Ensure calling thread is attached to the interactive desktop (WinSta0\Default)
         try:
             import ctypes
+            from ctypes import wintypes
             user32 = ctypes.windll.user32
             h_winsta = user32.OpenWindowStationW("WinSta0", False, 0x037F)
             if h_winsta:
@@ -647,48 +646,125 @@ class ApplicationManager:
             h_desk = user32.OpenDesktopW("Default", 0, False, 0x01FF)
             if h_desk:
                 user32.SetThreadDesktop(h_desk)
-        except Exception:
-            pass
 
-        def enum_windows_callback(hwnd, _):
-            if win32gui.IsWindowVisible(hwnd):
-                title = win32gui.GetWindowText(hwnd).strip()
-                if title:
-                    _, pid = win32process.GetWindowThreadProcessId(hwnd)
-                    try:
-                        pname = psutil.Process(pid).name()
-                    except Exception:
-                        pname = "unknown"
-                    windows.append({
-                        "hwnd": hwnd,
-                        "title": title,
-                        "pid": pid,
-                        "process_name": pname
-                    })
-            return True
+            WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
-        try:
-            win32gui.EnumWindows(enum_windows_callback, None)
+            def enum_cb(hwnd, lparam):
+                try:
+                    if user32.IsWindow(hwnd) and user32.IsWindowVisible(hwnd):
+                        length = user32.GetWindowTextLengthW(hwnd)
+                        if length > 0:
+                            buff = ctypes.create_unicode_buffer(length + 1)
+                            user32.GetWindowTextW(hwnd, buff, length + 1)
+                            title = buff.value.strip()
+                            if title and title not in ("Default IME", "MSCTFIME UI", "Program Manager"):
+                                pid = wintypes.DWORD()
+                                user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                                try:
+                                    pname = psutil.Process(pid.value).name()
+                                except Exception:
+                                    pname = "unknown"
+                                windows.append({
+                                    "hwnd": hwnd,
+                                    "title": title,
+                                    "pid": pid.value,
+                                    "process_name": pname,
+                                    "is_visible": bool(user32.IsWindowVisible(hwnd))
+                                })
+                except Exception:
+                    pass
+                return True
+
+            user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
         except Exception as e:
             logger.warning(f"Error enumerating windows: {e}")
 
         return windows
 
     @classmethod
+    def _force_window_foreground(cls, hwnd: int) -> bool:
+        """Forces a window into the active foreground using thread input attachment and Win32 APIs."""
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+
+            if not user32.IsWindow(hwnd):
+                return False
+
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            else:
+                user32.ShowWindow(hwnd, 5)  # SW_SHOW
+
+            fg_hwnd = user32.GetForegroundWindow()
+            if fg_hwnd == hwnd:
+                return True
+
+            fg_thread_id = user32.GetWindowThreadProcessId(fg_hwnd, None)
+            cur_thread_id = kernel32.GetCurrentThreadId()
+
+            attached = False
+            if fg_thread_id != 0 and fg_thread_id != cur_thread_id:
+                attached = bool(user32.AttachThreadInput(cur_thread_id, fg_thread_id, True))
+
+            try:
+                # Alt key press trick to unlock Windows foreground lock
+                user32.keybd_event(0x12, 0, 0, 0)
+                user32.BringWindowToTop(hwnd)
+                user32.SetForegroundWindow(hwnd)
+                user32.SwitchToThisWindow(hwnd, True)
+                user32.keybd_event(0x12, 0, 2, 0)
+            finally:
+                if attached:
+                    user32.AttachThreadInput(cur_thread_id, fg_thread_id, False)
+
+            time.sleep(0.2)
+            return user32.GetForegroundWindow() == hwnd
+        except Exception as e:
+            logger.warning(f"Error in _force_window_foreground for hwnd {hwnd}: {e}")
+            return False
+
+    @classmethod
     def focus_window(cls, title_substring: str) -> bool:
-        """Brings the window matching the title substring to the foreground."""
+        """Brings the window matching the title substring or process to the foreground with verification."""
         if not PYWIN32_AVAILABLE:
             return False
 
+        q = title_substring.lower().strip()
         windows = cls.list_open_windows()
-        for win in windows:
-            if title_substring.lower() in win["title"].lower():
-                hwnd = win["hwnd"]
-                try:
-                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                    win32gui.SetForegroundWindow(hwnd)
-                    return True
-                except Exception as e:
-                    logger.warning(f"Failed to focus window: {e}")
-                    return False
+        if not windows:
+            return False
+
+        # Rank candidates: prioritize dedicated native process matches over browser tabs
+        def match_score(w: Dict[str, Any]) -> int:
+            pname = w.get("process_name", "").lower()
+            title = w.get("title", "").lower()
+
+            # Exact process match or process starting with query (e.g. whatsapp.root.exe)
+            if pname.startswith(q) or q in pname:
+                if title == q:
+                    return 100
+                return 80
+            if title == q:
+                return 70
+            if title.startswith(q):
+                return 60
+            if q in title:
+                # Deprioritize browser tabs (msedge, chrome) if looking for standalone apps
+                if any(b in pname for b in ["msedge", "chrome", "firefox", "brave"]):
+                    return 30
+                return 50
+            return 0
+
+        scored = [(match_score(w), w) for w in windows]
+        scored = [item for item in scored if item[0] > 0]
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        for score, win in scored:
+            hwnd = win["hwnd"]
+            if cls._force_window_foreground(hwnd):
+                logger.info(f"Focused window '{win.get('title')}' (PID: {win.get('pid')}) with score {score}")
+                return True
+
         return False

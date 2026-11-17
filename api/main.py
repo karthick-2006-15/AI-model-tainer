@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from core.config.settings import settings
 from storage.db.connection import init_db
-from api.routers import system, sessions, voice, chat, memory, automation, files, mobile, research, tasks, vision, scheduler, integrations, avatar
+from api.routers import system, sessions, voice, chat, memory, automation, files, mobile, research, tasks, vision, scheduler, integrations, avatar, spotify
 from api.websockets import hud_stream, audio_stream
 from modules.mobile import bridge as mobile_bridge
 import logging
@@ -40,10 +40,21 @@ async def lifespan(app: FastAPI):
 
         def broadcast_voice_event(cmd: str, resp: str):
             try:
+                # 1. Post user's voice prompt to chat stream
+                if cmd:
+                    asyncio.run_coroutine_threadsafe(
+                        hud_manager.broadcast({
+                            "type": "chat_message",
+                            "sender": "user",
+                            "content": cmd
+                        }),
+                        loop
+                    )
+                # 2. Post JARVIS's voice response to chat stream & trigger TTS
                 asyncio.run_coroutine_threadsafe(
                     hud_manager.broadcast({
                         "type": "token_chunk",
-                        "chunk": f"[Voice Instruction: '{cmd}']\n\n{resp}",
+                        "chunk": resp,
                         "tool_executed": "voice_interaction",
                         "verified": True
                     }),
@@ -99,6 +110,7 @@ app.include_router(vision.router)
 app.include_router(scheduler.router)
 app.include_router(integrations.router)
 app.include_router(avatar.router)
+app.include_router(spotify.router)
 
 # Mount WebSocket routers
 app.include_router(hud_stream.router)

@@ -209,11 +209,11 @@ export const FloatingAvatarWidget: React.FC<Props> = ({
       </div>
 
       {/* Main Animated AI Face (Clicking opens dashboard) */}
-      <div className="relative">
+      <div className="relative flex items-center justify-center my-auto">
         <JarvisAvatar
           state={state}
           theme={theme}
-          size={isCompactWindow ? 'medium' : size}
+          size={isCompactWindow ? 'small' : size}
           statusMessage={statusMessage}
           audioAmplitude={audioAmplitude}
           interactive={true}
@@ -227,13 +227,13 @@ export const FloatingAvatarWidget: React.FC<Props> = ({
             onToggleMic();
           }}
           title={isListening ? 'Listening (Click to Stop)' : 'Click to Speak'}
-          className={`absolute bottom-3 right-3 p-2.5 rounded-full border shadow-xl backdrop-blur-md transition-all duration-200 ${
+          className={`absolute -bottom-1 -right-2 p-2 rounded-full border shadow-xl backdrop-blur-md transition-all duration-200 ${
             isListening
               ? 'bg-emerald-500 text-white border-emerald-300 animate-pulse'
               : 'bg-[#040e21]/95 text-cyan-400 border-cyan-500/50 hover:scale-110 hover:border-cyan-300 hover:shadow-cyan-500/50'
           }`}
         >
-          {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4 text-slate-400" />}
+          {isListening ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5 text-slate-400" />}
         </button>
       </div>
     </div>

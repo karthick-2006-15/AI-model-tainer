@@ -73,3 +73,19 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
 }
+
+export interface SpotifyPlaybackState {
+  is_running: boolean;
+  is_playing: boolean;
+  is_paused: boolean;
+  volume: number;
+  device: string;
+  track: {
+    title: string;
+    artist: string;
+    album: string;
+    is_playing: boolean;
+    duration_ms: number;
+    progress_ms: number;
+  };
+}

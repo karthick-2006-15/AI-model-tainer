@@ -13,7 +13,7 @@ logger = logging.getLogger("jarvis.computer_use.mouse_kb")
 
 # Safety parameters
 pyautogui.PAUSE = 0.05
-pyautogui.FAILSAFE = True
+pyautogui.FAILSAFE = False
 
 
 class MouseKeyboardController:

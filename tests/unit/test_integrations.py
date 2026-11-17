@@ -4,12 +4,14 @@ Tests VS Code, GitHub/Git, Spotify Media Controls, and Daily Productivity Analyt
 """
 
 import pytest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from api.main import app
 from modules.integrations.vscode import vscode_integration
 from modules.integrations.github import github_integration
 from modules.integrations.spotify import spotify_integration
 from modules.integrations.productivity import productivity_analyzer
+from modules.media.spotify_controller import spotify_controller
 from core.brain.tools import tool_registry
 
 client = TestClient(app)
@@ -36,9 +38,11 @@ async def test_github_integration_summary():
 
 @pytest.mark.asyncio
 async def test_spotify_integration_playback():
-    res = await spotify_integration.execute("volume_up", {})
-    assert res["success"] is True
-    assert res["action"] == "volume_up"
+    with patch.object(spotify_controller, "get_playback_state", return_value={"success": True, "is_playing": True, "volume": 50}), \
+         patch.object(spotify_controller, "set_volume", return_value={"success": True, "volume": 60, "action": "volume_up"}):
+        res = await spotify_integration.execute("volume_up", {})
+        assert res["success"] is True
+        assert res["action"] == "volume_up"
 
 
 def test_productivity_analyzer_report():
@@ -64,9 +68,10 @@ def test_integrations_rest_endpoints():
     assert "current_branch" in git_res.json()
 
     # 3. Spotify control endpoint
-    spot_res = client.post("/api/integrations/spotify/control", json={"action": "mute"})
-    assert spot_res.status_code == 200
-    assert spot_res.json()["success"] is True
+    with patch.object(spotify_controller, "set_volume", return_value={"success": True, "volume": 0, "muted": True, "action": "mute"}):
+        spot_res = client.post("/api/integrations/spotify/control", json={"action": "mute"})
+        assert spot_res.status_code == 200
+        assert spot_res.json()["success"] is True
 
     # 4. Productivity endpoint
     prod_res = client.get("/api/integrations/productivity")

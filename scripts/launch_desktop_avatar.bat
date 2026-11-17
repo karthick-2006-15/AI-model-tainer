@@ -1,6 +1,8 @@
 @echo off
 title JARVIS Floating Desktop Avatar
-echo [JARVIS] Launching Floating Desktop Avatar Widget...
+echo ===================================================
+echo   JARVIS PERSONAL AI - FLOATING DESKTOP AVATAR
+echo ===================================================
 cd /d "%~dp0\.."
-start "" python scripts\run_floating_avatar.py
-exit
+python scripts\run_floating_avatar.py
+pause

@@ -61,16 +61,23 @@ def revoke_device(device_id: str):
 @router.post("/files/send-to-laptop")
 async def receive_mobile_file(file: UploadFile = File(...)):
     """Receives a file transferred from Android companion and saves to MobileSync directory."""
-    sync_dir = os.path.join(os.path.expanduser("~"), "Downloads", "MobileSync")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename cannot be empty.")
+
+    safe_filename = os.path.basename(file.filename).strip()
+    if not safe_filename or safe_filename in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename or path traversal detected.")
+
+    sync_dir = os.path.abspath(os.path.join(os.path.expanduser("~"), "Downloads", "MobileSync"))
     os.makedirs(sync_dir, exist_ok=True)
-    destination = os.path.join(sync_dir, file.filename)
+    destination = os.path.join(sync_dir, safe_filename)
 
     with open(destination, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     return {
         "success": True,
-        "file_name": file.filename,
+        "file_name": safe_filename,
         "saved_path": destination,
         "size_bytes": os.path.getsize(destination)
     }
@@ -79,7 +86,20 @@ async def receive_mobile_file(file: UploadFile = File(...)):
 @router.get("/files/download")
 def download_file_to_mobile(file_path: str = Query(...)):
     """Downloads an authorized file from laptop to mobile companion."""
-    abs_path = os.path.abspath(file_path)
+    sync_dir = os.path.abspath(os.path.join(os.path.expanduser("~"), "Downloads", "MobileSync"))
+
+    if os.path.isabs(file_path):
+        abs_path = os.path.abspath(file_path)
+    else:
+        abs_path = os.path.abspath(os.path.join(sync_dir, file_path))
+
+    # Path boundary enforcement: prevent arbitrary file reading (e.g. .env, SSH keys)
+    try:
+        if os.path.commonpath([abs_path, sync_dir]) != sync_dir:
+            raise HTTPException(status_code=403, detail="Access denied: Requested file is outside authorized MobileSync directory.")
+    except (ValueError, Exception):
+        raise HTTPException(status_code=403, detail="Access denied: Requested file is outside authorized MobileSync directory.")
+
     if not os.path.exists(abs_path) or os.path.isdir(abs_path):
         raise HTTPException(status_code=404, detail="File not found.")
 

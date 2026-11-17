@@ -42,6 +42,51 @@ class BrainOrchestrator:
             mem_items = [f"- {m['text']} (relevance: {m['score']})" for m in relevant_memories]
             memory_context = "\n\n### RELEVANT PERSONAL MEMORIES:\n" + "\n".join(mem_items)
 
+        # 2b. Check for user confirmation or cancellation of active Level 3 challenges
+        from core.security.permissions import permission_engine
+        latest_challenge = permission_engine.get_latest_challenge()
+        if latest_challenge:
+            approved, resolved_ch = permission_engine.resolve_voice_confirmation(user_input)
+            if approved is True and resolved_ch:
+                tool_to_execute = resolved_ch["tool_name"]
+                tool_args = resolved_ch["arguments"]
+                if tool_to_execute == "whatsapp.send_message":
+                    from modules.computer_use.whatsapp import whatsapp_automation
+                    if whatsapp_automation._last_prepared_draft:
+                        whatsapp_automation._last_prepared_draft["status"] = "confirmed"
+                    send_res = whatsapp_automation.send_message(
+                        recipient=tool_args.get("recipient", "contact"),
+                        message_text=tool_args.get("message", ""),
+                        skip_permission_check=True
+                    )
+                    return {
+                        "response": send_res.get("report", f"Message sent to {tool_args.get('recipient')} successfully."),
+                        "tool_executed": "whatsapp.send_message",
+                        "tool_result": send_res,
+                        "intent": "system_control",
+                        "verified": send_res.get("verified", True)
+                    }
+                else:
+                    exec_result = await tool_registry.execute(tool_to_execute, tool_args)
+                    formatted_response = self._format_fast_result(tool_to_execute, exec_result.get("result"))
+                    return {
+                        "response": formatted_response,
+                        "tool_executed": tool_to_execute,
+                        "tool_result": exec_result.get("result"),
+                        "intent": "system_control",
+                        "verified": exec_result.get("success", True)
+                    }
+            elif approved is False and resolved_ch:
+                from modules.computer_use.whatsapp import whatsapp_automation
+                whatsapp_automation._last_prepared_draft = None
+                return {
+                    "response": "Understood, sir. I have cancelled the operation. No message was sent.",
+                    "tool_executed": None,
+                    "tool_result": None,
+                    "intent": "system_control",
+                    "verified": True
+                }
+
         # 3. Assemble Context Window
         effective_system_prompt = self.system_prompt + memory_context
         messages: List[Dict[str, Any]] = [
@@ -57,16 +102,17 @@ class BrainOrchestrator:
 
         messages.append({"role": "user", "content": user_input})
 
-        # 3. Built-in Conversational Fast-Path (Greetings, Capabilities, Identity, Status)
+        # 3. Built-in Conversational Fast-Path (Greetings, Audio checks, Capabilities, Identity, Status)
         if model_router._active_provider is None and intent.target_tool == "built_in_conversational_kernel":
             conv_response = self._handle_built_in_conversation(user_input)
-            return {
-                "response": conv_response,
-                "tool_executed": None,
-                "tool_result": None,
-                "intent": intent.category.value,
-                "verified": True
-            }
+            if conv_response and conv_response != "JARVIS Core is standing by, sir. Ready for your instructions.":
+                return {
+                    "response": conv_response,
+                    "tool_executed": None,
+                    "tool_result": None,
+                    "intent": intent.category.value,
+                    "verified": True
+                }
 
         # 4. Fast-Path Heuristic Tool Execution (Direct microsecond shortcut)
         if intent.confidence >= 0.9 and intent.target_tool:
@@ -99,7 +145,12 @@ class BrainOrchestrator:
             llm_response = LLMResponse(content=f"Error: {e}")
 
         # Check for offline local daemon or empty model response -> Trigger autonomous fallback
-        if not llm_response.content or "Local Ollama daemon is offline" in llm_response.content or llm_response.content.startswith("Error:"):
+        if (not llm_response.content and not llm_response.tool_calls) or (
+            llm_response.content and (
+                "Local Ollama daemon is offline" in llm_response.content
+                or llm_response.content.startswith("Error:")
+            )
+        ):
             fallback_answer = await self._generate_autonomous_fallback(user_input)
             return {
                 "response": fallback_answer,
@@ -118,13 +169,13 @@ class BrainOrchestrator:
             # Append tool output to message history and request final response
             messages.append({
                 "role": "assistant",
-                "content": None,
+                "content": "",
                 "tool_calls": [{
                     "id": first_tool.id,
                     "type": "function",
                     "function": {
                         "name": first_tool.tool_name,
-                        "arguments": str(first_tool.arguments)
+                        "arguments": first_tool.arguments if isinstance(first_tool.arguments, dict) else {}
                     }
                 }]
             })
@@ -132,12 +183,16 @@ class BrainOrchestrator:
                 "role": "tool",
                 "tool_call_id": first_tool.id,
                 "name": first_tool.tool_name,
-                "content": str(exec_result.get("result") or exec_result.get("error"))
+                "content": str(exec_result.get("result") or exec_result.get("error") or "Operation complete.")
             })
 
             try:
                 final_response = await provider.generate(messages=messages)
-                speech_text = final_response.content
+                content = final_response.content if final_response else None
+                if content and not content.startswith("Local Ollama daemon is offline") and not content.startswith("Error:"):
+                    speech_text = content
+                else:
+                    speech_text = self._format_fast_result(first_tool.tool_name, exec_result.get("result"))
             except Exception:
                 speech_text = self._format_fast_result(first_tool.tool_name, exec_result.get("result"))
 
@@ -295,14 +350,95 @@ class BrainOrchestrator:
                 return "I searched the workspace, but found no matching files."
             return f"I found {len(result)} matching files: {', '.join(result[:4])}."
 
+        elif tool_name == "files.recursive_search" and isinstance(result, list):
+            if not result:
+                return "I searched the requested folder, but found no matching files."
+            names = [f.get("file_name") or f.get("name") or os.path.basename(f.get("path", "")) for f in result[:5]]
+            return f"I found {len(result)} matching files: {', '.join(names)}."
+
+        elif tool_name == "spotify.play" and isinstance(result, dict):
+            track = result.get("track")
+            artist = result.get("artist")
+            if track and artist:
+                return f"Playing {track} by {artist} on Spotify."
+            elif track:
+                return f"Playing {track} on Spotify."
+            return result.get("message", "Playing music on Spotify.")
+
+        elif tool_name == "spotify.pause" and isinstance(result, dict):
+            return "Paused Spotify playback."
+
+        elif tool_name == "spotify.resume" and isinstance(result, dict):
+            return "Resumed playback."
+
+        elif tool_name == "spotify.next" and isinstance(result, dict):
+            cur = result.get("current_track", {})
+            title = cur.get("title") if isinstance(cur, dict) else None
+            if title and title != "No track playing":
+                return f"Skipped to next track. Now playing {title}."
+            return "Skipped to next track."
+
+        elif tool_name == "spotify.previous" and isinstance(result, dict):
+            cur = result.get("current_track", {})
+            title = cur.get("title") if isinstance(cur, dict) else None
+            if title and title != "No track playing":
+                return f"Returned to previous track: {title}."
+            return "Returned to previous track."
+
+        elif tool_name == "spotify.get_current_track" and isinstance(result, dict):
+            title = result.get("title")
+            artist = result.get("artist")
+            if title and title != "No track playing":
+                if artist and artist != "Spotify":
+                    return f"Currently playing '{title}' by {artist}."
+                return f"Currently playing '{title}'."
+            return "No song is currently playing on Spotify."
+
+        elif tool_name == "spotify.set_volume" and isinstance(result, dict):
+            vol = result.get("volume", 50)
+            return f"Spotify volume set to {vol}%."
+
+        elif tool_name == "spotify.open" and isinstance(result, dict):
+            return result.get("message", "Spotify is open.")
+
+
         return f"Action complete: {result}"
 
     def _handle_built_in_conversation(self, text: str) -> str:
-        """Handles greetings, identity queries, capabilities, and system status without external LLMs."""
+        """Handles greetings, identity queries, capabilities, audio checks, and system status without external LLMs."""
         import re
-        q = text.lower().strip()
+        raw_q = text.lower().strip()
+        # Strip common wake-word and greeting prefixes to normalize intent
+        q = re.sub(r"^(?:hey\s+|hi\s+|hello\s+|ok\s+|okay\s+)?jarvis\s*[,.:;!\-]?\s*", "", raw_q).strip()
+        if not q:
+            q = raw_q
 
-        if re.search(r"\b(what can you do|what are your capabilities|capabilities|help|what do you do|what are you capable of)\b", q):
+        # 1. Microphone & Audio Hearing Checks
+        if re.search(r"\b(can you hear|do you hear|are you listening|listen to me|test mic|mic test|microphone check|mic check|audio check|sound check)\b", q):
+            return "Yes, sir. I can hear you loud and clear. All audio input channels and speech models are fully calibrated and operational. How may I assist you?"
+
+        # 2. Speech Output Checks
+        elif re.search(r"\b(can you speak|speak to me|say something|talk to me)\b", q):
+            return "Acoustic and speech synthesis channels are online and operational, sir. How can I help you today?"
+
+        # 3. Presence & Availability Checks
+        elif re.search(r"\b(are you there|you there|are you online|are you awake|wake up)\b", q):
+            return "Always at your service, sir. All core neural subsystems are active and standing by. What do you need?"
+
+        # 4. Gratitude & Compliments
+        elif re.search(r"\b(thank you|thanks|good job|great job|well done)\b", q):
+            return "You're very welcome, sir. It is always a pleasure to assist."
+
+        # 5. Stand By / Sleep Mode
+        elif re.search(r"\b(stand by|go to sleep|sleep mode|good night)\b", q):
+            return "Standing by in surveillance mode, sir. Call me anytime with 'Hey Jarvis'."
+
+        # 6. Acknowledgments
+        elif re.search(r"^(ok|okay|alright|fine|understood|got it)[!.]*$", q):
+            return "Standing by, sir. Ready for your instructions."
+
+        # 7. Capabilities & Help
+        elif re.search(r"\b(what can you do|what are your capabilities|capabilities|help|what do you do|what are you capable of)\b", q):
             return (
                 "Here are my primary operational capabilities, sir:\n"
                 "• **Application & OS Control:** Open and manage applications (VS Code, Chrome, Terminal, etc.), files, and windows.\n"
@@ -316,23 +452,27 @@ class BrainOrchestrator:
                 "You can speak with 'Hey Jarvis' or enter any instruction here."
             )
 
-        elif re.search(r"\b(who are you|what are you|introduce yourself|your name)\b", q):
+        # 8. Identity & Introduction
+        elif re.search(r"\b(who are you|what are you|introduce yourself|your name|what is your name)\b", q):
             return (
                 "I am JARVIS (Just A Rather Very Intelligent System), your personal AI operating system "
                 "connecting your Windows PC and mobile devices. I assist with system automation, file management, "
                 "code intelligence, visual diagnostics, web research, and autonomous goal execution."
             )
 
+        # 9. Time
         elif re.search(r"\b(what time is it|current time|what is the time|tell me the time|time now|time)\b", q):
             from datetime import datetime
             now_str = datetime.now().strftime("%I:%M %p")
             return f"The current time is {now_str}, sir."
 
+        # 10. Date
         elif re.search(r"\b(what is today's date|current date|what's the date|today's date|what date is it|what day is it)\b", q):
             from datetime import datetime
             date_str = datetime.now().strftime("%A, %B %d, %Y")
             return f"Today is {date_str}, sir."
 
+        # 11. Health & Hardware Metrics
         elif re.search(r"\b(how are you|how are things|status report|system health|system status)\b", q):
             from modules.automation.system import SystemMonitor
             m = SystemMonitor.get_hardware_metrics()
@@ -341,39 +481,45 @@ class BrainOrchestrator:
             disk = m.get("disk", {}).get("percent", 0)
             return f"Systems are functioning at peak efficiency, sir. CPU load is at {cpu}%, Memory is nominal at {ram}%, and Primary Storage is {disk}% full. All core neural modules are standing by."
 
+        # 12. Executive Briefing
         elif re.search(r"\b(briefing|morning briefing|daily briefing)\b", q):
             from modules.scheduler.briefing import daily_briefing_generator
             b = daily_briefing_generator.generate_briefing()
             return b.get("speech_text", "Daily executive briefing generated.")
 
-        elif re.search(r"\b(hi|hello|hey|hey jarvis|greetings|good morning|good afternoon|good evening|howdy|yo)\b", q):
+        # 13. General Greetings
+        elif re.search(r"\b(hi|hello|hey|greetings|good morning|good afternoon|good evening|howdy|yo)\b", q):
             return "Greetings, sir. JARVIS Core Neural Kernel is online and operational. All subsystems are ready. How may I assist you today?"
 
         return "JARVIS Core is standing by, sir. Ready for your instructions."
 
     async def _generate_autonomous_fallback(self, user_input: str) -> str:
         """Fallback for general questions when local Ollama or cloud API is offline."""
+        import re
         # Check built-in conversation first
         built_in = self._handle_built_in_conversation(user_input)
         if built_in != "JARVIS Core is standing by, sir. Ready for your instructions.":
             return built_in
 
-        # Try live web search to answer factual queries
-        try:
-            from modules.research.search import web_search_client
-            results = await web_search_client.search(user_input, max_results=2)
-            if results and results[0].get("raw_snippet"):
-                snippets = "\n".join(f"• {r.get('raw_snippet', '')}" for r in results if r.get("raw_snippet"))
-                return (
-                    f"Here is what I found regarding '{user_input}':\n\n{snippets}\n\n"
-                    f"*[Retrieved via JARVIS Live Research Kernel. For open-domain creative conversation, start local Ollama (`ollama run llama3`) or configure an API key in `.env`.]*"
-                )
-        except Exception:
-            pass
+        # Only search the web for factual research queries, never for conversational queries
+        is_search_worthy = bool(re.search(
+            r"\b(who is|what is|where is|when was|how to|why is|search for|look up|find out|news on|weather in|price of|score of|meaning of|definition of|explain)\b",
+            user_input.lower()
+        ))
+
+        if is_search_worthy:
+            try:
+                from modules.research.search import web_search_client
+                results = await web_search_client.search(user_input, max_results=2)
+                if results and results[0].get("raw_snippet"):
+                    snippets = "\n".join(f"• {r.get('raw_snippet', '')}" for r in results if r.get("raw_snippet"))
+                    return f"Here is what I found regarding '{user_input}':\n\n{snippets}"
+            except Exception:
+                pass
 
         return (
             f"I have received your request: '{user_input}'. Core operating system tools, file management, and laptop automations are online. "
-            f"For unrestricted creative conversational chat, you can start your local Ollama engine (`ollama run llama3`) or provide an API key in `.env`."
+            f"For open-domain creative conversations, you can connect an API key (Gemini/OpenAI in .env) or start local Ollama (`ollama run llama3.2`)."
         )
 
 

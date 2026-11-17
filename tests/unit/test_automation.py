@@ -105,13 +105,20 @@ def test_automation_rest_endpoints():
 
         # 2. Shell execution endpoint (intercepted by Level 3 guardrail)
         shell_res = client.post("/api/automation/shell", json={
-            "command": "Get-Date",
-            "skip_permission_check": False
+            "command": "Get-Date"
         })
         assert shell_res.status_code == 200
         data = shell_res.json()
         assert data.get("awaiting_approval") is True
         challenge_id = data["challenge"]["challenge_id"]
+
+        # Verify that attempting to pass skip_permission_check does not bypass Level 3 enforcement
+        bypass_attempt = client.post("/api/automation/shell", json={
+            "command": "Get-Date",
+            "skip_permission_check": True
+        })
+        assert bypass_attempt.status_code == 200
+        assert bypass_attempt.json().get("awaiting_approval") is True
 
         # 3. Resolve challenge via API
         resolve_res = client.post("/api/automation/challenges/resolve", json={

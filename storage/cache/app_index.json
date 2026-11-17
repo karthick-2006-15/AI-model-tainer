@@ -1,6 +1,6 @@
 {
-  "timestamp": 1794836593.5250022,
-  "count": 342,
+  "timestamp": 1794913075.2850642,
+  "count": 345,
   "apps": [
     {
       "id": "windows_settings",
@@ -918,6 +918,30 @@
       "install_location": null,
       "executable_path": "C:\\Program Files (x86)\\Microsoft\\Copilot\\Application\\157.0.4341.60\\copilotapp.exe",
       "description": "Installed Windows application (Copilot)",
+      "categories": [
+        "general"
+      ],
+      "last_launch_status": {
+        "last_launch": null,
+        "success_count": 0,
+        "failure_count": 0
+      }
+    },
+    {
+      "id": "create_react_app_sample",
+      "name": "Create React App Sample",
+      "aliases": [
+        "cras",
+        "create react app sample",
+        "createreactappsample"
+      ],
+      "target": "shell:AppsFolder\\Chrome._crx_mnldmmnaclcggcbhoonnndepfa",
+      "app_type": "uwp",
+      "launch_method": "apps_folder",
+      "source": "uwp_package",
+      "install_location": null,
+      "executable_path": null,
+      "description": "Installed Windows application (Create React App Sample)",
       "categories": [
         "general"
       ],
@@ -2306,6 +2330,29 @@
       }
     },
     {
+      "id": "ollama",
+      "name": "Ollama",
+      "aliases": [
+        "ollama",
+        "ollama app"
+      ],
+      "target": "C:\\Users\\karth\\AppData\\Local\\Programs\\Ollama\\ollama app.exe",
+      "app_type": "win32",
+      "launch_method": "direct_exec",
+      "source": "start_menu",
+      "install_location": null,
+      "executable_path": "C:\\Users\\karth\\AppData\\Local\\Programs\\Ollama\\ollama app.exe",
+      "description": "Installed Windows application (Ollama)",
+      "categories": [
+        "general"
+      ],
+      "last_launch_status": {
+        "last_launch": null,
+        "success_count": 0,
+        "failure_count": 0
+      }
+    },
+    {
       "id": "onedrive",
       "name": "OneDrive",
       "aliases": [
@@ -2493,14 +2540,15 @@
       "id": "photos",
       "name": "Photos",
       "aliases": [
-        "photos"
+        "photos",
+        "onedrive.app"
       ],
       "target": "shell:AppsFolder\\Microsoft.Windows.Photos_8wekyb3d8bbwe!App",
       "app_type": "uwp",
       "launch_method": "apps_folder",
       "source": "uwp_package",
       "install_location": null,
-      "executable_path": null,
+      "executable_path": "C:\\Program Files\\Microsoft OneDrive\\OneDrive.App.exe",
       "description": "Installed Windows application (Photos)",
       "categories": [
         "general"
@@ -3424,7 +3472,7 @@
       "launch_method": "apps_folder",
       "source": "uwp_package",
       "install_location": null,
-      "executable_path": null,
+      "executable_path": "C:\\Users\\karth\\AppData\\Roaming\\Spotify\\Spotify.exe",
       "description": "Installed Windows application (Spotify)",
       "categories": [
         "media"
@@ -3898,8 +3946,8 @@
         "communication"
       ],
       "last_launch_status": {
-        "last_launch": 1794836593.5250022,
-        "success_count": 3,
+        "last_launch": null,
+        "success_count": 0,
         "failure_count": 0
       }
     },
@@ -5840,12 +5888,12 @@
         "mo",
         "onedrivesetup"
       ],
-      "target": "C:\\Program Files\\Microsoft OneDrive\\26.198.1011.0006\\OneDriveSetup.exe",
+      "target": "C:\\Program Files\\Microsoft OneDrive\\26.204.1019.0007\\OneDriveSetup.exe",
       "app_type": "win32",
       "launch_method": "direct_exec",
       "source": "registry",
       "install_location": null,
-      "executable_path": "C:\\Program Files\\Microsoft OneDrive\\26.198.1011.0006\\OneDriveSetup.exe",
+      "executable_path": "C:\\Program Files\\Microsoft OneDrive\\26.204.1019.0007\\OneDriveSetup.exe",
       "description": "Installed software (Microsoft OneDrive)",
       "categories": [
         "general"
@@ -8014,6 +8062,31 @@
       "description": "Installed software (Python 3.14.3)",
       "categories": [
         "development"
+      ],
+      "last_launch_status": {
+        "last_launch": null,
+        "success_count": 0,
+        "failure_count": 0
+      }
+    },
+    {
+      "id": "ollama_version_04016",
+      "name": "Ollama version 0.40.16",
+      "aliases": [
+        "ollama version 0.40.16",
+        "ollamaversion0.40.16",
+        "ov0",
+        "unins000"
+      ],
+      "target": "C:\\Users\\karth\\AppData\\Local\\Programs\\Ollama\\unins000.exe",
+      "app_type": "win32",
+      "launch_method": "direct_exec",
+      "source": "registry",
+      "install_location": "C:\\Users\\karth\\AppData\\Local\\Programs\\Ollama\\",
+      "executable_path": "C:\\Users\\karth\\AppData\\Local\\Programs\\Ollama\\unins000.exe",
+      "description": "Installed software (Ollama version 0.40.16)",
+      "categories": [
+        "general"
       ],
       "last_launch_status": {
         "last_launch": null,

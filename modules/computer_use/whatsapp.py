@@ -31,14 +31,54 @@ class WhatsAppAutomation:
 
     def __init__(self):
         self._last_prepared_draft: Optional[Dict[str, Any]] = None
+        self._current_open_contact: Optional[str] = None
+
+    def _is_whatsapp_foreground(self) -> bool:
+        """Verifies whether the current active foreground window belongs to WhatsApp Desktop."""
+        try:
+            import ctypes
+            import win32gui
+            import win32process
+            import psutil
+            user32 = ctypes.windll.user32
+            fg_hwnd = user32.GetForegroundWindow()
+            if not fg_hwnd:
+                return False
+            title = win32gui.GetWindowText(fg_hwnd)
+            _, pid = win32process.GetWindowThreadProcessId(fg_hwnd)
+            pname = psutil.Process(pid).name().lower() if pid else ""
+            if "whatsapp" in pname or title.lower() == "whatsapp":
+                return True
+            return False
+        except Exception:
+            return False
+
+    def _ensure_whatsapp_active(self, max_attempts: int = 3) -> bool:
+        """Brings WhatsApp to foreground and strictly confirms active focus."""
+        if self._is_whatsapp_foreground():
+            return True
+
+        for attempt in range(max_attempts):
+            ApplicationManager.focus_window("WhatsApp")
+            time.sleep(0.3)
+            if self._is_whatsapp_foreground():
+                return True
+            # Fallback launch if minimized to tray or process hidden
+            ApplicationManager.launch("whatsapp")
+            time.sleep(0.6)
+            ApplicationManager.focus_window("WhatsApp")
+            time.sleep(0.3)
+            if self._is_whatsapp_foreground():
+                return True
+
+        logger.error("WhatsApp is NOT the active foreground window. Aborting to protect active user window.")
+        return False
 
     def open_whatsapp(self) -> Dict[str, Any]:
         """Launches WhatsApp or focuses the existing application window."""
         res = ApplicationManager.launch("whatsapp")
-        # Settle wait
-        time.sleep(0.8)
-        # Ensure window is foregrounded
-        ApplicationManager.focus_window("WhatsApp")
+        time.sleep(0.5)
+        self._ensure_whatsapp_active()
         return res
 
     def resolve_contact(self, contact_query: str) -> Dict[str, Any]:
@@ -112,9 +152,27 @@ class WhatsAppAutomation:
 
     def open_conversation(self, contact_name: str) -> Dict[str, Any]:
         """Navigates to the conversation with the specified contact."""
-        self.open_whatsapp()
+        if not self._ensure_whatsapp_active():
+            return {
+                "success": False,
+                "error": "WhatsApp Desktop is not active or could not be brought to the foreground. Input aborted to protect other applications."
+            }
 
-        # Try UI Automation search first
+        # 1. Check if conversation with this contact is already open
+        if self._current_open_contact and self._current_open_contact.lower() == contact_name.lower():
+            logger.info(f"Conversation with '{contact_name}' is already active.")
+            return {
+                "success": True,
+                "contact": contact_name,
+                "method": "already_open",
+                "message": f"Opened conversation with '{contact_name}'."
+            }
+
+        # 2. Defensively unfocus any modal or input
+        mouse_kb.press_key("esc")
+        time.sleep(0.15)
+
+        # 3. Try UI Automation search first
         search_box = native_uia.find_control(name="Search or start new chat", control_type="Edit")
         if not search_box:
             search_box = native_uia.find_control(name="Search", control_type="Edit")
@@ -123,8 +181,11 @@ class WhatsAppAutomation:
             search_box.SetFocus()
             native_uia.type_into_element(text=contact_name, clear_first=True)
             time.sleep(0.5)
+            mouse_kb.press_key("down")
+            time.sleep(0.2)
             mouse_kb.press_key("enter")
             time.sleep(0.5)
+            self._current_open_contact = contact_name.lower()
             return {
                 "success": True,
                 "contact": contact_name,
@@ -132,24 +193,58 @@ class WhatsAppAutomation:
                 "message": f"Opened conversation with '{contact_name}'."
             }
 
-        # Fallback hotkey navigation: Ctrl+F in WhatsApp searches contacts
-        mouse_kb.press_hotkey(["ctrl", "f"])
-        time.sleep(0.3)
-        mouse_kb.type_text(contact_name)
-        time.sleep(0.5)
-        mouse_kb.press_key("enter")
-        time.sleep(0.4)
+        # 4. Reliable Direct Search & Click Navigation
+        import win32gui
+        wins = ApplicationManager.list_open_windows()
+        wa = next((w for w in wins if "whatsapp" in w["process_name"].lower() and w["title"].lower() == "whatsapp"), None)
+        if not wa:
+            wa = next((w for w in wins if "whatsapp" in w["title"].lower()), None)
+        if not wa:
+            return {"success": False, "error": "WhatsApp window could not be found."}
 
+        l, t, r, b = win32gui.GetWindowRect(wa["hwnd"])
+        w, h = r - l, b - t
+
+        # Verify WhatsApp is still active before sending clicks
+        if not self._is_whatsapp_foreground():
+            return {"success": False, "error": "Active window changed. Search aborted."}
+
+        # Click the Search Box
+        search_x = l + int(w * 0.25)
+        search_y = t + 175
+        mouse_kb.click(search_x, search_y)
+        time.sleep(0.2)
+
+        # Select all and delete previous query
+        mouse_kb.press_hotkey(["ctrl", "a"])
+        time.sleep(0.1)
+        mouse_kb.press_key("backspace")
+        time.sleep(0.15)
+
+        # Type contact name query
+        mouse_kb.type_text(contact_name)
+        time.sleep(0.8)
+
+        # Select first matching result by CLICKING it
+        # CRITICAL SAFETY: Never press Enter here! Pressing Enter would send the contact name if focus was in chat input.
+        # Clicking the search result item safely opens the conversation without risking any message dispatch.
+        first_result_x = l + int(w * 0.25)
+        first_result_y = t + 360
+        mouse_kb.click(first_result_x, first_result_y)
+        time.sleep(0.6)
+
+        self._current_open_contact = contact_name.lower()
         return {
             "success": True,
             "contact": contact_name,
-            "method": "hotkey_search",
+            "method": "search_result_click",
             "message": f"Opened conversation with '{contact_name}'."
         }
 
     def prepare_message(self, recipient: str, message_text: str) -> Dict[str, Any]:
         """
-        Validates contact, drafts message, and generates a Level 3 Permission Challenge.
+        Validates contact, opens conversation in WhatsApp Desktop, drafts message,
+        and generates a Level 3 Permission Challenge.
         Does NOT send the message until user explicitly authorizes it.
         """
         # Resolve recipient
@@ -161,6 +256,13 @@ class WhatsAppAutomation:
                 "success": False,
                 "error": "Message content cannot be empty."
             }
+
+        # Visual verification: Open WhatsApp Desktop and navigate to conversation
+        search_query = recipient.capitalize() if recipient.lower() in ("appa", "dad", "mom", "amma") else target_name
+        try:
+            self.open_conversation(search_query)
+        except Exception as e:
+            logger.warning(f"Note during visual WhatsApp conversation navigation: {e}")
 
         # Create Level 3 Permission Challenge
         allowed, reason, challenge = permission_engine.evaluate_request(
@@ -176,6 +278,7 @@ class WhatsAppAutomation:
 
         self._last_prepared_draft = {
             "recipient": target_name,
+            "search_query": search_query,
             "message": message_text.strip(),
             "challenge_id": challenge["challenge_id"] if challenge else None,
             "status": "awaiting_user_confirmation"
@@ -229,20 +332,62 @@ class WhatsAppAutomation:
                         "challenge": challenge
                     }
 
-        # Open conversation
-        self.open_conversation(recipient)
+        # Ensure WhatsApp window is active and foregrounded
+        if not self._ensure_whatsapp_active():
+            return {
+                "success": False,
+                "error": "WhatsApp Desktop is not active. Message transmission aborted to protect other applications."
+            }
 
-        # Type message into chat input
-        # Try finding message input edit control
+        # Navigate only if conversation is not already active from preparation step
+        search_target = (self._last_prepared_draft.get("search_query") if self._last_prepared_draft else None) or recipient
+        if not self._current_open_contact or self._current_open_contact.lower() != search_target.lower():
+            nav_res = self.open_conversation(search_target)
+            if not nav_res.get("success"):
+                return nav_res
+
+        # Clear prepared draft now that it's being sent
+        self._last_prepared_draft = None
+
+        # Re-verify active foreground window right before clicking and typing
+        if not self._is_whatsapp_foreground():
+            return {
+                "success": False,
+                "error": "WhatsApp lost foreground focus. Aborted typing to prevent leaking message into background application."
+            }
+
+        # Focus message input box and type ONLY the message text
+        time.sleep(0.3)
         input_ctrl = native_uia.find_control(name="Type a message", control_type="Edit")
         if input_ctrl:
             input_ctrl.SetFocus()
             native_uia.type_into_element(message_text)
         else:
-            # Fallback to direct keyboard type
-            mouse_kb.type_text(message_text)
+            # Focus chat input at bottom of right pane
+            wins = ApplicationManager.list_open_windows()
+            wa = next((w for w in wins if "whatsapp" in w["process_name"].lower() and w["title"].lower() == "whatsapp"), None)
+            if not wa:
+                wa = next((w for w in wins if "whatsapp" in w["title"].lower()), None)
+            if wa:
+                import win32gui
+                l, t, r, b = win32gui.GetWindowRect(wa["hwnd"])
+                w = r - l
+                msg_x = l + int(w * 0.65)
+                msg_y = b - 45
+                mouse_kb.click(msg_x, msg_y)
+                time.sleep(0.2)
 
-        time.sleep(0.2)
+        # STRICT GUARD: Re-verify foreground window after click before typing
+        if not self._is_whatsapp_foreground():
+            return {
+                "success": False,
+                "error": "Active window changed. Message input blocked to protect current app."
+            }
+
+        # Type ONLY message text
+        mouse_kb.type_text(message_text)
+        time.sleep(0.25)
+
         # Send via Enter key
         mouse_kb.press_key("enter")
         time.sleep(0.5)

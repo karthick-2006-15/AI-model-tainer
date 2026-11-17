@@ -79,3 +79,37 @@ def test_mobile_rest_endpoints():
         file_data = file_res.json()
         assert file_data["success"] is True
         assert file_data["file_name"] == "mobile_photo.jpg"
+
+        # 5. Path traversal sanitization on upload
+        traversal_file = io.BytesIO(b"malicious script")
+        traversal_res = client.post(
+            "/api/mobile/files/send-to-laptop",
+            files={"file": ("../../evil.bat", traversal_file, "application/x-bat")}
+        )
+        assert traversal_res.status_code == 200
+        assert traversal_res.json()["file_name"] == "evil.bat"
+
+        # 6. Reject invalid/empty filenames
+        empty_name_file = io.BytesIO(b"content")
+        bad_res = client.post(
+            "/api/mobile/files/send-to-laptop",
+            files={"file": ("..", empty_name_file, "application/octet-stream")}
+        )
+        assert bad_res.status_code == 400
+
+        # 7. File download path confinement (prevent arbitrary file reading)
+        # 7a. Sensitive file outside sync directory is blocked (403)
+        forbidden_res = client.get("/api/mobile/files/download", params={"file_path": "C:/Windows/win.ini"})
+        assert forbidden_res.status_code == 403
+
+        # 7b. Relative path escape attempt is blocked (403)
+        escape_res = client.get("/api/mobile/files/download", params={"file_path": "../../.env"})
+        assert escape_res.status_code == 403
+
+        # 7c. Non-existent file within sync directory returns 404
+        not_found_res = client.get("/api/mobile/files/download", params={"file_path": "non_existent_file_12345.xyz"})
+        assert not_found_res.status_code == 404
+
+        # 7d. Valid file within sync directory succeeds (200)
+        download_res = client.get("/api/mobile/files/download", params={"file_path": "mobile_photo.jpg"})
+        assert download_res.status_code == 200

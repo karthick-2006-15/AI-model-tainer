@@ -59,3 +59,69 @@ def test_whatsapp_voice_confirmation_resolution():
     draft2 = whatsapp_automation.prepare_message(recipient="brother", message_text="Call me")
     approved2, ch2 = permission_engine.resolve_voice_confirmation("cancel")
     assert approved2 is False
+
+
+def test_whatsapp_blocks_input_when_window_not_active(monkeypatch):
+    """Guarantees that when WhatsApp is not active in foreground, keystroke injection is completely blocked."""
+    from unittest.mock import MagicMock
+    from modules.computer_use.mouse_kb import mouse_kb
+
+    mock_type = MagicMock()
+    mock_press = MagicMock()
+    mock_click = MagicMock()
+
+    monkeypatch.setattr(mouse_kb, "type_text", mock_type)
+    monkeypatch.setattr(mouse_kb, "press_key", mock_press)
+    monkeypatch.setattr(mouse_kb, "click", mock_click)
+
+    # Force active window checks to fail (simulating Antigravity or other app being active)
+    monkeypatch.setattr(whatsapp_automation, "_is_whatsapp_foreground", lambda: False)
+    monkeypatch.setattr(whatsapp_automation, "_ensure_whatsapp_active", lambda max_attempts=3: False)
+
+    res = whatsapp_automation.send_message(
+        recipient="test_friend",
+        message_text="sensitive keystroke",
+        skip_permission_check=True
+    )
+
+    assert res["success"] is False
+    assert "not active" in res["error"].lower()
+    # Ensure zero keystrokes were injected
+    mock_type.assert_not_called()
+    mock_press.assert_not_called()
+    mock_click.assert_not_called()
+
+
+def test_whatsapp_open_conversation_safe_from_enter_key(monkeypatch):
+    """Guarantees that open_conversation navigates by clicking without pressing enter in chat."""
+    from unittest.mock import MagicMock
+    from modules.computer_use.mouse_kb import mouse_kb
+
+    mock_type = MagicMock()
+    mock_press = MagicMock()
+    mock_click = MagicMock()
+
+    monkeypatch.setattr(mouse_kb, "type_text", mock_type)
+    monkeypatch.setattr(mouse_kb, "press_key", mock_press)
+    monkeypatch.setattr(mouse_kb, "click", mock_click)
+    monkeypatch.setattr(mouse_kb, "press_hotkey", MagicMock())
+
+    monkeypatch.setattr(whatsapp_automation, "_is_whatsapp_foreground", lambda: True)
+    monkeypatch.setattr(whatsapp_automation, "_ensure_whatsapp_active", lambda max_attempts=3: True)
+
+    from modules.automation.apps import ApplicationManager
+    monkeypatch.setattr(ApplicationManager, "list_open_windows", lambda: [
+        {"hwnd": 1115440, "title": "WhatsApp", "process_name": "WhatsApp.Root.exe"}
+    ])
+
+    import win32gui
+    monkeypatch.setattr(win32gui, "GetWindowRect", lambda hwnd: (100, 100, 1200, 900))
+
+    res = whatsapp_automation.open_conversation("Appa")
+    assert res["success"] is True
+
+    # Critical check: 'enter' must NEVER be pressed during open_conversation
+    pressed_keys = [call.args[0] for call in mock_press.call_args_list if call.args]
+    assert "enter" not in pressed_keys
+    # Click must have been used to select search result
+    assert mock_click.call_count >= 2  # search box click + first result click

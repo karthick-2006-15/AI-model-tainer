@@ -1,78 +1,77 @@
 """
 Spotify & Windows Media Playback Integration Plugin
-Provides media controls (play, pause, next, volume) and URI playlist/search launching.
+Provides media controls (play, pause, next, volume) and Spotify desktop controller integration.
 """
 
 import os
-import ctypes
-import subprocess
 import logging
 from typing import Dict, Any
 from modules.integrations.base import BaseIntegration
+from modules.media.spotify_controller import spotify_controller
 
 logger = logging.getLogger("jarvis.integrations.spotify")
-
-# Win32 Virtual Key Codes for Media Control
-VK_VOLUME_MUTE = 0xAD
-VK_VOLUME_DOWN = 0xAE
-VK_VOLUME_UP = 0xAF
-VK_MEDIA_NEXT_TRACK = 0xB0
-VK_MEDIA_PREV_TRACK = 0xB1
-VK_MEDIA_PLAY_PAUSE = 0xB3
-
-
-def _send_media_key(vk_code: int):
-    """Sends a native Windows media virtual keystroke without mouse interaction."""
-    if os.name == "nt":
-        ctypes.windll.user32.keybd_event(vk_code, 0, 0, 0)
-        ctypes.windll.user32.keybd_event(vk_code, 0, 2, 0)  # KEYEVENTF_KEYUP
-    else:
-        import pyautogui
-        pyautogui.press("playpause")
 
 
 class SpotifyIntegration(BaseIntegration):
     def __init__(self):
         super().__init__(
             name="Spotify & Media",
-            description="Media playback and Spotify music control.",
-            capabilities=["play_pause", "next", "previous", "volume_up", "volume_down", "mute", "search_play"],
+            description="Media playback and Windows Spotify music control.",
+            capabilities=[
+                "play", "pause", "resume", "play_pause", "next", "previous",
+                "volume_up", "volume_down", "set_volume", "mute",
+                "search_play", "get_current_track", "get_playback_state", "open_spotify"
+            ],
             permission_level=1
         )
 
     def is_available(self) -> bool:
-        return True  # Native Windows media hotkeys work system-wide
+        return spotify_controller.is_installed() or spotify_controller.is_running()
 
     async def execute(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            if action in ("play_pause", "toggle"):
-                _send_media_key(VK_MEDIA_PLAY_PAUSE)
-                res = {"success": True, "action": "play_pause", "message": "Toggled playback state."}
-            elif action == "next":
-                _send_media_key(VK_MEDIA_NEXT_TRACK)
-                res = {"success": True, "action": "next", "message": "Skipped to next track."}
-            elif action == "previous":
-                _send_media_key(VK_MEDIA_PREV_TRACK)
-                res = {"success": True, "action": "previous", "message": "Returned to previous track."}
-            elif action == "volume_up":
-                _send_media_key(VK_VOLUME_UP)
-                res = {"success": True, "action": "volume_up", "message": "Increased volume."}
-            elif action == "volume_down":
-                _send_media_key(VK_VOLUME_DOWN)
-                res = {"success": True, "action": "volume_down", "message": "Decreased volume."}
-            elif action == "mute":
-                _send_media_key(VK_VOLUME_MUTE)
-                res = {"success": True, "action": "mute", "message": "Toggled audio mute."}
-            elif action == "search_play":
-                query = params.get("query", "Lo-Fi Beats")
-                uri = f"spotify:search:{query}"
-                subprocess.Popen(f"start {uri}", shell=True)
-                res = {"success": True, "action": "search_play", "query": query, "uri": uri}
+            act = action.lower().strip()
+            if act in ("play", "search_play"):
+                q = params.get("query") or params.get("song") or params.get("track") or ""
+                res = spotify_controller.play_track(q)
+            elif act == "pause":
+                res = spotify_controller.pause_playback()
+            elif act == "resume":
+                res = spotify_controller.resume_playback()
+            elif act in ("play_pause", "toggle"):
+                state = spotify_controller.get_playback_state()
+                if state.get("is_playing"):
+                    res = spotify_controller.pause_playback()
+                else:
+                    res = spotify_controller.resume_playback()
+            elif act in ("next", "skip"):
+                res = spotify_controller.next_track()
+            elif act in ("previous", "prev"):
+                res = spotify_controller.previous_track()
+            elif act == "volume_up":
+                cur_vol = spotify_controller.get_playback_state().get("volume", 50)
+                res = spotify_controller.set_volume(min(100, cur_vol + 10))
+            elif act == "volume_down":
+                cur_vol = spotify_controller.get_playback_state().get("volume", 50)
+                res = spotify_controller.set_volume(max(0, cur_vol - 10))
+            elif act == "set_volume":
+                level = params.get("level", 50)
+                res = spotify_controller.set_volume(int(level))
+            elif act == "mute":
+                res = spotify_controller.set_volume(0)
+            elif act == "get_current_track":
+                res = {"success": True, "track": spotify_controller.get_current_track()}
+            elif act == "get_playback_state":
+                res = spotify_controller.get_playback_state()
+            elif act == "open_spotify":
+                res = spotify_controller.open_spotify()
             else:
                 err = f"Unknown media action '{action}'"
                 self.log_execution(action, params, False, None, err)
                 return {"success": False, "error": err}
 
+            if isinstance(res, dict) and "action" not in res:
+                res["action"] = act
             self.log_execution(action, params, True, res)
             return res
 
