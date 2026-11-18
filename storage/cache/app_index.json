@@ -1,5 +1,5 @@
 {
-  "timestamp": 1795005277.0464065,
+  "timestamp": 1795009037.6127944,
   "count": 345,
   "apps": [
     {
@@ -98,10 +98,9 @@
         "utility"
       ],
       "last_launch_status": {
-        "last_launch": 1795005277.0464065,
+        "last_launch": null,
         "success_count": 0,
-        "failure_count": 3,
-        "last_error": "Timeout waiting for window"
+        "failure_count": 0
       }
     },
     {
