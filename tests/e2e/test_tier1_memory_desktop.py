@@ -443,16 +443,15 @@ def test_tc_sys_04_spotify_volume_control(app_client):
 def test_tc_sys_05_hud_websocket_telemetry_streaming(app_client):
     """TC-SYS-05: HUD WebSocket streams periodic hardware telemetry packets."""
     with app_client.websocket_connect("/ws/hud") as ws:
-        # First frame: agent_state
-        f1 = ws.receive_json()
-        assert f1["type"] == "agent_state"
-        # Second frame: avatar_state
-        f2 = ws.receive_json()
-        assert f2["type"] == "avatar_state"
+        # Initial handshake frames (agent_state, voice_state, avatar_state)
+        init_frames = [ws.receive_json() for _ in range(3)]
+        init_types = {f["type"] for f in init_frames}
+        assert "agent_state" in init_types
+        assert "avatar_state" in init_types
         # Wait for telemetry packet
-        f3 = ws.receive_json()
-        assert f3["type"] == "telemetry"
-        assert "cpu" in f3["data"]
+        f_tel = ws.receive_json()
+        assert f_tel["type"] == "telemetry"
+        assert "cpu" in f_tel["data"]
 
 
 def test_tc_sys_06_mobile_pairing_initiation(app_client):

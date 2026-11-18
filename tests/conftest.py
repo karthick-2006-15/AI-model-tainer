@@ -21,3 +21,15 @@ if str(MEDIA_DIR) not in sys.path:
 # Environment controls for test runs
 os.environ["JARVIS_TESTING"] = "1"
 os.environ["JARVIS_DEBUG"] = "false"
+
+import pytest
+import asyncio
+
+@pytest.fixture(autouse=True)
+def reset_asyncio_loop():
+    """Resets the event loop between tests to prevent loop runner collisions."""
+    yield
+    try:
+        asyncio.set_event_loop(None)
+    except Exception:
+        pass

@@ -389,10 +389,10 @@ def test_websocket_hud_multi_turn_context_and_resolution():
                 # Connect over WebSocket HUD
                 with client.websocket_connect("/ws/hud") as ws:
                     # Receive initial states
-                    msg_agent = ws.receive_json()
-                    assert msg_agent["type"] == "agent_state"
-                    msg_avatar = ws.receive_json()
-                    assert msg_avatar["type"] == "avatar_state"
+                    init_msgs = [ws.receive_json() for _ in range(3)]
+                    types = {m["type"] for m in init_msgs}
+                    assert "agent_state" in types
+                    assert "avatar_state" in types
 
                     # Send chat input referencing the session
                     ws.send_json({

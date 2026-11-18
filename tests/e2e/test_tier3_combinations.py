@@ -246,11 +246,11 @@ def test_tc_xfeat_08_spotify_playback_with_hud_telemetry(app_client):
     from modules.media.spotify_controller import spotify_controller
 
     with app_client.websocket_connect("/ws/hud") as ws:
-        # Initial greeting and avatar frames
-        f1 = ws.receive_json()
-        assert f1["type"] == "agent_state"
-        f2 = ws.receive_json()
-        assert f2["type"] == "avatar_state"
+        # Initial greeting and avatar frames (agent_state, voice_state, avatar_state)
+        init_frames = [ws.receive_json() for _ in range(3)]
+        init_types = {f["type"] for f in init_frames}
+        assert "agent_state" in init_types
+        assert "avatar_state" in init_types
 
         # Dispatch chat input over HUD socket
         with patch.object(spotify_controller, "play_track", return_value={
