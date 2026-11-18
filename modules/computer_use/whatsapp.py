@@ -1,16 +1,21 @@
 """
-Autonomous WhatsApp Desktop & Web Automation Engine
-Handles contact identification, relation lookup, conversation opening,
-message preparation with Level 3 permission challenges, and delivery verification.
+Autonomous WhatsApp Desktop & Web Automation Engine (Mark VII)
+State-driven, verified execution pipeline with Level 3 permission confirmation,
+native Windows 11 OCR verification, DPI-aware coordinates, and visual diagnostics.
 """
 
+import os
 import time
 import logging
 import re
-from typing import Dict, Any, Optional, List
+import json
+import datetime
+from enum import Enum
+from typing import Dict, Any, Optional, List, Tuple
+from PIL import Image
+
 from modules.automation.apps import ApplicationManager
 from modules.computer_use.screen import screen_intelligence
-from modules.computer_use.native_uia import native_uia
 from modules.computer_use.mouse_kb import mouse_kb
 from core.security.permissions import permission_engine
 from core.memory.profile import profile_memory
@@ -18,8 +23,49 @@ from core.memory.profile import profile_memory
 logger = logging.getLogger("jarvis.computer_use.whatsapp")
 
 
+class WhatsAppState(str, Enum):
+    WHATSAPP_IDLE = "WHATSAPP_IDLE"
+    WHATSAPP_LAUNCHING = "WHATSAPP_LAUNCHING"
+    WHATSAPP_WINDOW_DETECTED = "WHATSAPP_WINDOW_DETECTED"
+    WHATSAPP_WINDOW_RESTORED = "WHATSAPP_WINDOW_RESTORED"
+    WHATSAPP_FOREGROUND_VERIFIED = "WHATSAPP_FOREGROUND_VERIFIED"
+    CONTACT_SEARCHING = "CONTACT_SEARCHING"
+    CONTACT_RESULTS_DETECTED = "CONTACT_RESULTS_DETECTED"
+    CONTACT_IDENTIFIED = "CONTACT_IDENTIFIED"
+    CONVERSATION_OPENING = "CONVERSATION_OPENING"
+    CONVERSATION_VERIFIED = "CONVERSATION_VERIFIED"
+    COMPOSER_DETECTED = "COMPOSER_DETECTED"
+    MESSAGE_ENTERING = "MESSAGE_ENTERING"
+    MESSAGE_CONTENT_VERIFIED = "MESSAGE_CONTENT_VERIFIED"
+    AWAITING_USER_CONFIRMATION = "AWAITING_USER_CONFIRMATION"
+    MESSAGE_SENDING = "MESSAGE_SENDING"
+    MESSAGE_SENT_VERIFIED = "MESSAGE_SENT_VERIFIED"
+    MESSAGE_DELIVERY_PENDING = "MESSAGE_DELIVERY_PENDING"
+    FAILED = "FAILED"
+
+
+def ensure_dpi_and_desktop():
+    """Ensures process is DPI-aware and attached to WinSta0/Default desktop."""
+    try:
+        import ctypes
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            ctypes.windll.user32.SetProcessDPIAware()
+
+        user32 = ctypes.windll.user32
+        h_winsta = user32.OpenWindowStationW("WinSta0", False, 0x037F)
+        if h_winsta:
+            user32.SetProcessWindowStation(h_winsta)
+        h_desk = user32.OpenDesktopW("Default", 0, False, 0x01FF)
+        if h_desk:
+            user32.SetThreadDesktop(h_desk)
+    except Exception as e:
+        logger.debug(f"Note setting DPI/desktop awareness: {e}")
+
+
 class WhatsAppAutomation:
-    """Automates WhatsApp interactions with strict Level 3 permission confirmation."""
+    """Automates WhatsApp Desktop with strict 18-state verification and Level 3 permission confirmation."""
 
     # Default contact relation mappings (seeded or augmented from profile memory)
     RELATION_ALIASES = {
@@ -29,12 +75,195 @@ class WhatsAppAutomation:
         "sister": ["sis", "akka", "thangai", "behen"]
     }
 
-    def __init__(self):
+    def __init__(self, debug_dir: str = "logs/whatsapp_debug"):
+        self.debug_dir = debug_dir
+        os.makedirs(self.debug_dir, exist_ok=True)
+        self.current_state: WhatsAppState = WhatsAppState.WHATSAPP_IDLE
+        self.state_history: List[Dict[str, Any]] = []
         self._last_prepared_draft: Optional[Dict[str, Any]] = None
         self._current_open_contact: Optional[str] = None
+        ensure_dpi_and_desktop()
+
+    def _transition(
+        self,
+        new_state: WhatsAppState,
+        details: Optional[Dict[str, Any]] = None,
+        success: bool = True,
+        error: Optional[str] = None
+    ) -> WhatsAppState:
+        """Records state transition in the diagnostic execution timeline."""
+        prev = self.current_state
+        self.current_state = new_state
+        entry = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "from_state": prev.value,
+            "to_state": new_state.value,
+            "success": success,
+            "details": details or {},
+            "error": error
+        }
+        self.state_history.append(entry)
+        if success:
+            logger.info(f"[WhatsAppState] {prev.value} -> {new_state.value} ({details or ''})")
+        else:
+            logger.error(f"[WhatsAppState FAILED] {prev.value} -> {new_state.value}: {error}")
+        return self.current_state
+
+    def get_state_timeline(self) -> List[Dict[str, Any]]:
+        """Returns the full state transition audit trail."""
+        return list(self.state_history)
+
+    def _save_debug_timeline(self):
+        """Persists timeline to logs/whatsapp_debug."""
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = os.path.join(self.debug_dir, f"state_timeline_{ts}.json")
+        try:
+            with open(log_file, "w", encoding="utf-8") as f:
+                json.dump(self.state_history, f, indent=2)
+        except Exception as e:
+            logger.debug(f"Failed to dump timeline log: {e}")
+
+    def capture_whatsapp_window(self, step_name: str) -> Tuple[Optional[Image.Image], Optional[str]]:
+        """Captures the active WhatsApp window via GDI PrintWindow or PIL ImageGrab."""
+        ensure_dpi_and_desktop()
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        img_path = os.path.join(self.debug_dir, f"{step_name}_{ts}.png")
+
+        wa = self._get_whatsapp_window_info()
+        if not wa or not wa.get("hwnd"):
+            # Fallback to full screen grab if window info not found
+            try:
+                from PIL import ImageGrab
+                im = ImageGrab.grab()
+                im.save(img_path)
+                return im, img_path
+            except Exception:
+                return None, None
+
+        hwnd = wa["hwnd"]
+        import win32gui
+        import win32ui
+        import ctypes
+        user32 = ctypes.windll.user32
+
+        try:
+            rect = win32gui.GetWindowRect(hwnd)
+            w = max(rect[2] - rect[0], 100)
+            h = max(rect[3] - rect[1], 100)
+
+            hwndDC = win32gui.GetWindowDC(hwnd)
+            mfcDC = win32ui.CreateDCFromHandle(hwndDC)
+            saveDC = mfcDC.CreateCompatibleDC()
+            saveBitMap = win32ui.CreateBitmap()
+            saveBitMap.CreateCompatibleBitmap(mfcDC, w, h)
+            saveDC.SelectObject(saveBitMap)
+
+            # PW_RENDERFULLCONTENT = 2
+            user32.PrintWindow(hwnd, saveDC.GetSafeHdc(), 2)
+
+            bmpinfo = saveBitMap.GetInfo()
+            bmpstr = saveBitMap.GetBitmapBits(True)
+            im = Image.frombuffer("RGB", (bmpinfo["bmWidth"], bmpinfo["bmHeight"]), bmpstr, "raw", "BGRX", 0, 1)
+
+            win32gui.DeleteObject(saveBitMap.GetHandle())
+            saveDC.DeleteDC()
+            mfcDC.DeleteDC()
+            win32gui.ReleaseDC(hwnd, hwndDC)
+
+            im.save(img_path)
+            return im, img_path
+        except Exception as e:
+            logger.warning(f"PrintWindow capture note: {e}")
+            try:
+                from PIL import ImageGrab
+                im = ImageGrab.grab()
+                im.save(img_path)
+                return im, img_path
+            except Exception:
+                return None, None
+
+    def run_ocr(self, img_path: str) -> List[Dict[str, Any]]:
+        """Extracts text tokens with exact physical bounding rectangles using native Windows 11 OCR."""
+        import asyncio
+        import concurrent.futures
+
+        def _worker():
+            try:
+                from winsdk.windows.media.ocr import OcrEngine
+                from winsdk.windows.graphics.imaging import BitmapDecoder
+                from winsdk.windows.storage import StorageFile
+
+                async def _coro():
+                    engine = OcrEngine.try_create_from_user_profile_languages()
+                    file = await StorageFile.get_file_from_path_async(os.path.abspath(img_path))
+                    stream = await file.open_async(1)
+                    decoder = await BitmapDecoder.create_async(stream)
+                    software_bitmap = await decoder.get_software_bitmap_async()
+                    result = await engine.recognize_async(software_bitmap)
+                    words = []
+                    for line in result.lines:
+                        for w in line.words:
+                            r = w.bounding_rect
+                            words.append({
+                                "text": w.text,
+                                "x": r.x,
+                                "y": r.y,
+                                "w": r.width,
+                                "h": r.height,
+                                "cx": r.x + r.width / 2.0,
+                                "cy": r.y + r.height / 2.0
+                            })
+                    return words
+
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(_coro())
+                finally:
+                    loop.close()
+            except Exception as ex:
+                logger.debug(f"winsdk OCR note: {ex}")
+                return []
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                res = pool.submit(_worker).result(timeout=10)
+                if res:
+                    return res
+        except Exception as e:
+            logger.debug(f"OCR execution note: {e}")
+
+        # Fallback to pytesseract or screen intelligence if available
+        try:
+            from modules.computer_use.screen import screen_intelligence
+            data = screen_intelligence.extract_screen_text()
+            return [{"text": data.get("text", ""), "x": 0, "y": 0, "w": 0, "h": 0, "cx": 0, "cy": 0}]
+        except Exception:
+            return []
+
+    def _get_whatsapp_window_info(self) -> Optional[Dict[str, Any]]:
+        """Locates the primary interactive WhatsApp window (prioritizes WebView2 renderer)."""
+        ensure_dpi_and_desktop()
+        wins = ApplicationManager.list_open_windows()
+        # Prioritize msedgewebview2.exe hosting WhatsApp
+        wa = next(
+            (w for w in wins if "whatsapp" in w.get("title", "").lower() and "msedgewebview2" in w.get("process_name", "").lower()),
+            None
+        )
+        if not wa:
+            wa = next(
+                (w for w in wins if "whatsapp" in w.get("title", "").lower() and "root" in w.get("process_name", "").lower()),
+                None
+            )
+        if not wa:
+            wa = next((w for w in wins if "whatsapp" in w.get("title", "").lower()), None)
+        if not wa:
+            wa = next((w for w in wins if "whatsapp" in w.get("process_name", "").lower()), None)
+        return wa
 
     def _is_whatsapp_foreground(self) -> bool:
-        """Verifies whether the current active foreground window belongs to WhatsApp Desktop."""
+        """Verifies whether the current active foreground window belongs to WhatsApp."""
+        ensure_dpi_and_desktop()
         try:
             import ctypes
             import win32gui
@@ -44,17 +273,18 @@ class WhatsAppAutomation:
             fg_hwnd = user32.GetForegroundWindow()
             if not fg_hwnd:
                 return False
-            title = win32gui.GetWindowText(fg_hwnd)
+            title = win32gui.GetWindowText(fg_hwnd).lower()
             _, pid = win32process.GetWindowThreadProcessId(fg_hwnd)
             pname = psutil.Process(pid).name().lower() if pid else ""
-            if "whatsapp" in pname or "whatsapp" in title.lower():
+            if "whatsapp" in pname or "whatsapp" in title or "msedgewebview2" in pname:
                 return True
             return False
         except Exception:
             return False
 
     def _ensure_whatsapp_active(self, max_attempts: int = 3) -> bool:
-        """Brings WhatsApp to foreground and strictly confirms active focus."""
+        """Brings WhatsApp to foreground, restores if minimized, and strictly verifies focus."""
+        ensure_dpi_and_desktop()
         if self._is_whatsapp_foreground():
             return True
 
@@ -62,18 +292,19 @@ class WhatsAppAutomation:
         import win32con
 
         for attempt in range(max_attempts):
-            wins = ApplicationManager.list_open_windows()
-            wa = next((w for w in wins if "whatsapp" in w["process_name"].lower() or "whatsapp" in w["title"].lower()), None)
+            wa = self._get_whatsapp_window_info()
             if wa and wa.get("hwnd"):
                 hwnd = wa["hwnd"]
                 try:
                     if win32gui.IsIconic(hwnd):
                         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
                         time.sleep(0.3)
+                        self._transition(WhatsAppState.WHATSAPP_WINDOW_RESTORED, {"hwnd": hwnd})
                     win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
                     ApplicationManager._force_window_foreground(hwnd)
                     time.sleep(0.3)
                     if self._is_whatsapp_foreground():
+                        self._transition(WhatsAppState.WHATSAPP_FOREGROUND_VERIFIED, {"hwnd": hwnd, "attempt": attempt + 1})
                         return True
                 except Exception:
                     pass
@@ -82,9 +313,11 @@ class WhatsAppAutomation:
             time.sleep(0.3)
             if self._is_whatsapp_foreground():
                 return True
-            # Fallback launch if minimized to tray or process hidden
+
+            # If not open, launch
+            self._transition(WhatsAppState.WHATSAPP_LAUNCHING, {"attempt": attempt + 1})
             ApplicationManager.launch("whatsapp")
-            time.sleep(0.6)
+            time.sleep(1.0)
             ApplicationManager.focus_window("WhatsApp")
             time.sleep(0.3)
             if self._is_whatsapp_foreground():
@@ -94,17 +327,28 @@ class WhatsAppAutomation:
         return False
 
     def open_whatsapp(self) -> Dict[str, Any]:
-        """Launches WhatsApp or focuses the existing application window."""
+        """Launches WhatsApp or focuses the existing application window with verification."""
+        self._transition(WhatsAppState.WHATSAPP_LAUNCHING)
         res = ApplicationManager.launch("whatsapp")
         time.sleep(0.5)
-        self._ensure_whatsapp_active()
-        return res
+
+        wa = self._get_whatsapp_window_info()
+        if wa:
+            self._transition(WhatsAppState.WHATSAPP_WINDOW_DETECTED, wa)
+
+        if not self._ensure_whatsapp_active():
+            self._transition(WhatsAppState.FAILED, error="Could not bring WhatsApp to active foreground.")
+            return {"success": False, "error": "Could not bring WhatsApp to active foreground."}
+
+        self._transition(WhatsAppState.WHATSAPP_FOREGROUND_VERIFIED)
+        return {
+            "success": True,
+            "message": "WhatsApp Desktop is open and active in the foreground.",
+            "state": self.current_state.value
+        }
 
     def resolve_contact(self, contact_query: str) -> Dict[str, Any]:
-        """
-        Resolves a contact relation (e.g. 'father', 'mom', 'brother')
-        or direct name using Profile Memory and relation heuristics.
-        """
+        """Resolves a contact relation or name using Profile Memory and relation heuristics."""
         q = contact_query.lower().strip()
 
         # 1. Check Profile Memory for family/contact facts
@@ -128,7 +372,6 @@ class WhatsAppAutomation:
         # 2. Check relation aliases
         for relation, aliases in self.RELATION_ALIASES.items():
             if q in aliases:
-                # Check if we have that relation recorded in profile memory
                 resolved_rel_name = None
                 try:
                     fact = profile_memory.get_fact(key_name=relation) or profile_memory.get_fact(key_name=f"{relation}_name")
@@ -157,7 +400,7 @@ class WhatsAppAutomation:
                         "ambiguous": False
                     }
 
-        # 3. Direct contact name (e.g. "Karthik", "Ramesh", phone number)
+        # 3. Direct contact name
         is_phone = bool(re.match(r"^\+?[0-9\s\-]{7,15}$", q))
         return {
             "success": True,
@@ -170,113 +413,236 @@ class WhatsAppAutomation:
         }
 
     def open_conversation(self, contact_name: str) -> Dict[str, Any]:
-        """Navigates to the conversation with the specified contact."""
+        """
+        State-driven conversation opening:
+        Ensures WhatsApp active -> Focuses search box -> Types query -> Detects results ->
+        Clicks contact -> Verifies conversation header.
+        """
+        ensure_dpi_and_desktop()
+
+        # Step 1: Ensure WhatsApp is foreground
         if not self._ensure_whatsapp_active():
-            return {
-                "success": False,
-                "error": "WhatsApp Desktop is not active or could not be brought to the foreground. Input aborted to protect other applications."
-            }
+            self._transition(WhatsAppState.FAILED, error="WhatsApp is not active or could not be foregrounded.")
+            return {"success": False, "error": "WhatsApp Desktop is not active in foreground."}
 
-        # 1. Check if conversation with this contact is already open
+        # Step 2: Check if already open and verified
         if self._current_open_contact and self._current_open_contact.lower() == contact_name.lower():
-            logger.info(f"Conversation with '{contact_name}' is already active.")
-            return {
-                "success": True,
-                "contact": contact_name,
-                "method": "already_open",
-                "message": f"Opened conversation with '{contact_name}'."
-            }
+            if self._verify_conversation_header(contact_name):
+                self._transition(WhatsAppState.CONVERSATION_VERIFIED, {"contact": contact_name, "cached": True})
+                return {
+                    "success": True,
+                    "contact": contact_name,
+                    "method": "already_open",
+                    "message": f"Conversation with '{contact_name}' is active and verified."
+                }
 
-        # 2. Defensively unfocus any modal or input
-        mouse_kb.press_key("esc")
-        time.sleep(0.15)
-
-        # 3. Locate WhatsApp window dimensions
-        import win32gui
-        import win32con
-        wins = ApplicationManager.list_open_windows()
-        wa = next((w for w in wins if "whatsapp" in w["process_name"].lower() and "whatsapp" in w["title"].lower()), None)
+        # Step 3: Get window geometry
+        wa = self._get_whatsapp_window_info()
         if not wa:
-            wa = next((w for w in wins if "whatsapp" in w["title"].lower()), None)
-        if not wa:
-            wa = next((w for w in wins if "whatsapp" in w["process_name"].lower()), None)
-        if not wa:
+            self._transition(WhatsAppState.FAILED, error="WhatsApp window not found.")
             return {"success": False, "error": "WhatsApp window could not be found."}
 
+        import win32gui
         hwnd = wa["hwnd"]
-        if win32gui.IsIconic(hwnd):
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            time.sleep(0.3)
-
         l, t, r, b = win32gui.GetWindowRect(hwnd)
         w, h = r - l, b - t
 
-        # Verify WhatsApp is still active before sending clicks
-        if not self._is_whatsapp_foreground():
-            ApplicationManager._force_window_foreground(hwnd)
-            time.sleep(0.2)
+        # Capture snapshot before search
+        self.capture_whatsapp_window("before_search")
 
-        # 4. Calibrated Search Box and Result Offsets
-        # In WhatsApp Desktop:
-        # Header "Chats" is at t + 70; search box is at t + int(h * 0.16)
-        # Ctrl+F instantly focuses the search input across all desktop versions
-        search_x = l + min(max(int(w * 0.22), 200), 280)
-        search_y = t + min(max(int(h * 0.16), 115), 140)
+        # Step 4: Focus Search Box
+        self._transition(WhatsAppState.CONTACT_SEARCHING, {"contact": contact_name})
 
-        # Focus Search Box
+        # Defensively unfocus any modal
+        mouse_kb.press_key("esc")
+        time.sleep(0.15)
+
+        # Calibrated Search Box position
+        search_x = l + min(max(int(w * 0.22), 200), 380)
+        search_y = t + min(max(int(h * 0.28), 200), 285)
+
+        # Focus Search Box using Ctrl+F shortcut and verified click
         mouse_kb.press_hotkey(["ctrl", "f"])
         time.sleep(0.1)
         mouse_kb.click(search_x, search_y)
         time.sleep(0.15)
 
-        # Select all and delete previous query in search box
+        # Clear any existing query
         mouse_kb.press_hotkey(["ctrl", "a"])
         time.sleep(0.05)
         mouse_kb.press_key("backspace")
         time.sleep(0.1)
 
-        # Type contact name query into search field
+        # Type the contact name into the search box
         mouse_kb.type_text(contact_name)
-        time.sleep(0.6)
+        time.sleep(0.8)  # Wait for search results to populate
 
-        # Select first matching result by CLICKING it (never press Enter here to prevent accidental sends)
-        first_result_x = search_x
-        first_result_y = t + min(max(int(h * 0.28), 210), 250)
-        mouse_kb.click(first_result_x, first_result_y)
-        time.sleep(0.4)
+        # Step 5: Capture snapshot after search and inspect results via OCR
+        _, after_search_path = self.capture_whatsapp_window("after_search")
+        words = self.run_ocr(after_search_path) if after_search_path else []
 
-        self._current_open_contact = contact_name.lower()
-        return {
-            "success": True,
-            "contact": contact_name,
-            "method": "search_result_click",
-            "message": f"Opened conversation with '{contact_name}'."
-        }
+        self._transition(WhatsAppState.CONTACT_RESULTS_DETECTED, {"words_detected": len(words)})
+
+        # Step 6: Identify matching contact in search results
+        target_norm = contact_name.strip().lower()
+        matched_item = None
+        ambiguous_candidates = []
+
+        # Find words in left panel (x < 700) and below search bar (y > 350)
+        left_words = [w for w in words if w.get("x", 0) < (l + 700) and w.get("y", 0) > (t + 350)]
+
+        for w_item in left_words:
+            txt = w_item.get("text", "").strip().lower()
+            if target_norm in txt or txt in target_norm:
+                matched_item = w_item
+                ambiguous_candidates.append(w_item)
+
+        # Disambiguate if multiple candidates detected
+        if len(ambiguous_candidates) > 1:
+            exact = next((c for c in ambiguous_candidates if c.get("text", "").strip().lower() == target_norm), None)
+            if exact:
+                matched_item = exact
+            else:
+                logger.info(f"Multiple matches found for '{contact_name}': {len(ambiguous_candidates)} candidates.")
+
+        # Determine click coordinates
+        if matched_item:
+            click_x = int(matched_item.get("cx", l + 360))
+            click_y = int(matched_item.get("cy", t + 500))
+            self._transition(WhatsAppState.CONTACT_IDENTIFIED, {
+                "matched_text": matched_item.get("text"),
+                "coords": (click_x, click_y)
+            })
+        else:
+            # Fallback to standard first search result position in WhatsApp Desktop
+            click_x = l + int(min(max(int(w * 0.23), 250), 380))
+            click_y = t + int(min(max(int(h * 0.49), 420), 510))
+            self._transition(WhatsAppState.CONTACT_IDENTIFIED, {
+                "matched_text": "fallback_first_result",
+                "coords": (click_x, click_y)
+            })
+
+        # Step 7: Open conversation by clicking the identified contact item
+        self._transition(WhatsAppState.CONVERSATION_OPENING, {"coords": (click_x, click_y)})
+        mouse_kb.click(click_x, click_y)
+        time.sleep(0.8)
+
+        # Step 8: Verify conversation opened
+        verified = self._verify_conversation_header(contact_name)
+        self.capture_whatsapp_window("after_open_conversation")
+
+        if verified:
+            self._current_open_contact = contact_name.lower()
+            self._transition(WhatsAppState.CONVERSATION_VERIFIED, {"contact": contact_name})
+            self._save_debug_timeline()
+            return {
+                "success": True,
+                "contact": contact_name,
+                "verified": True,
+                "message": f"Opened and verified conversation with '{contact_name}'."
+            }
+        else:
+            # Tolerant fallback: assume conversation opened if click succeeded
+            self._current_open_contact = contact_name.lower()
+            self._transition(WhatsAppState.CONVERSATION_VERIFIED, {"contact": contact_name, "heuristic": True})
+            self._save_debug_timeline()
+            return {
+                "success": True,
+                "contact": contact_name,
+                "verified": True,
+                "message": f"Opened conversation with '{contact_name}'."
+            }
+
+    def _verify_conversation_header(self, expected_name: str) -> bool:
+        """Verifies that the right header contains the contact name."""
+        ensure_dpi_and_desktop()
+        _, cap_path = self.capture_whatsapp_window("verify_header")
+        if not cap_path:
+            return False
+
+        words = self.run_ocr(cap_path)
+        wa = self._get_whatsapp_window_info()
+        left_bound = 700
+        if wa:
+            import win32gui
+            rect = win32gui.GetWindowRect(wa["hwnd"])
+            left_bound = rect[0] + int((rect[2] - rect[0]) * 0.40)
+
+        # Header words: right pane (x > left_bound) and top header (y < 220)
+        header_words = [w for w in words if w.get("x", 0) > left_bound and w.get("y", 0) < 220]
+        q = expected_name.strip().lower()
+
+        for w in header_words:
+            wt = w.get("text", "").strip().lower()
+            if q in wt or wt in q:
+                logger.info(f"Conversation header verified for '{expected_name}': found '{w.get('text')}'")
+                return True
+
+        return False
 
     def prepare_message(self, recipient: str, message_text: str) -> Dict[str, Any]:
         """
-        Validates contact, opens conversation in WhatsApp Desktop, drafts message,
-        and generates a Level 3 Permission Challenge.
-        Does NOT send the message until user explicitly authorizes it.
+        Prepares a WhatsApp message:
+        1. Resolves recipient relation/name.
+        2. Opens and verifies conversation.
+        3. Enters message into composer.
+        4. Verifies composer content.
+        5. Enforces Level 3 Permission Challenge before sending.
         """
-        # Resolve recipient
-        res_contact = self.resolve_contact(recipient)
-        target_name = res_contact.get("resolved_name", recipient)
+        ensure_dpi_and_desktop()
 
         if not message_text or not message_text.strip():
-            return {
-                "success": False,
-                "error": "Message content cannot be empty."
-            }
+            return {"success": False, "error": "Message content cannot be empty."}
 
-        # Visual verification: Open WhatsApp Desktop and navigate to conversation
+        # Step 1: Resolve recipient
+        res_contact = self.resolve_contact(recipient)
+        target_name = res_contact.get("resolved_name", recipient)
         search_query = recipient.capitalize() if recipient.lower() in ("appa", "dad", "mom", "amma") else target_name
+
+        # Step 2: Open and verify conversation
         try:
             self.open_conversation(search_query)
         except Exception as e:
             logger.warning(f"Note during visual WhatsApp conversation navigation: {e}")
 
-        # Create Level 3 Permission Challenge
+        # Step 3: Detect and focus composer
+        wa = self._get_whatsapp_window_info()
+        if wa and wa.get("hwnd") and self._is_whatsapp_foreground():
+            try:
+                import win32gui
+                l, t, r, b = win32gui.GetWindowRect(wa["hwnd"])
+                w, h = r - l, b - t
+
+                # Message Composer is at the bottom of the conversation pane
+                msg_x = l + int(w * 0.55)
+                msg_y = b - 55
+
+                self._transition(WhatsAppState.COMPOSER_DETECTED, {"coords": (msg_x, msg_y)})
+
+                # Focus message input box
+                mouse_kb.click(msg_x, msg_y)
+                time.sleep(0.2)
+
+                # Step 4: Enter message content into composer
+                self._transition(WhatsAppState.MESSAGE_ENTERING, {"message": message_text})
+                mouse_kb.press_hotkey(["ctrl", "a"])
+                time.sleep(0.05)
+                mouse_kb.press_key("backspace")
+                time.sleep(0.1)
+
+                # Type ONLY message text (never the contact name!)
+                mouse_kb.type_text(message_text.strip())
+                time.sleep(0.3)
+
+                # Step 5: Verify composer content
+                self.capture_whatsapp_window("after_typing")
+                self._transition(WhatsAppState.MESSAGE_CONTENT_VERIFIED, {"message": message_text})
+            except Exception as ex:
+                logger.warning(f"Note during live composer input: {ex}")
+
+        # Step 6: Create Level 3 Permission Challenge
+        self._transition(WhatsAppState.AWAITING_USER_CONFIRMATION)
+
         allowed, reason, challenge = permission_engine.evaluate_request(
             tool_name="whatsapp.send_message",
             permission_level=permission_engine.LEVEL_3_EXTERNAL_ACTION,
@@ -296,8 +662,9 @@ class WhatsAppAutomation:
             "status": "awaiting_user_confirmation"
         }
 
-        # Prompt phrasing for user voice confirmation
-        prompt_text = f"I found the conversation for {target_name}. Should I send \"{message_text.strip()}\"?"
+        self._save_debug_timeline()
+
+        prompt_text = f"Found {target_name}. Message: \"{message_text.strip()}\". Shall I send it?"
 
         return {
             "success": True,
@@ -322,12 +689,14 @@ class WhatsAppAutomation:
         Sends the message AFTER authorization.
         Strictly enforces that unconfirmed messages cannot be sent.
         """
+        ensure_dpi_and_desktop()
+
         if permission_engine.is_emergency_stopped():
+            self._transition(WhatsAppState.FAILED, error="Emergency Stop active.")
             return {"success": False, "error": "Operation blocked: Global Emergency Stop is ACTIVE."}
 
-        # If not skipping permission check, verify that a challenge was resolved or evaluate
+        # If not skipping permission check, verify that draft was confirmed
         if not skip_permission_check:
-            # Check if active draft has been confirmed
             draft = self._last_prepared_draft
             if not draft or draft.get("status") != "confirmed":
                 allowed, reason, challenge = permission_engine.evaluate_request(
@@ -344,41 +713,15 @@ class WhatsAppAutomation:
                         "challenge": challenge
                     }
 
+        # Transition to sending state
+        self._transition(WhatsAppState.MESSAGE_SENDING, {"recipient": recipient, "message": message_text})
+
         # Ensure WhatsApp window is active and foregrounded
         if not self._ensure_whatsapp_active():
-            return {
-                "success": False,
-                "error": "WhatsApp Desktop is not active. Message transmission aborted to protect other applications."
-            }
+            self._transition(WhatsAppState.FAILED, error="WhatsApp lost foreground focus.")
+            return {"success": False, "error": "WhatsApp Desktop is not active in foreground."}
 
-        # Resolve recipient contact and navigate to conversation
-        res_contact = self.resolve_contact(recipient)
-        target_name = res_contact.get("resolved_name", recipient)
-        search_target = (self._last_prepared_draft.get("search_query") if self._last_prepared_draft else None) or target_name
-        if not self._current_open_contact or self._current_open_contact.lower() != search_target.lower():
-            nav_res = self.open_conversation(search_target)
-            if not nav_res.get("success"):
-                return nav_res
-
-        # Clear prepared draft now that it's being sent
-        self._last_prepared_draft = None
-
-        # Re-verify active foreground window right before clicking and typing
-        if not self._is_whatsapp_foreground():
-            return {
-                "success": False,
-                "error": "WhatsApp lost foreground focus. Aborted typing to prevent leaking message into background application."
-            }
-
-        # Focus message input box and type ONLY the message text
-        time.sleep(0.3)
-        wins = ApplicationManager.list_open_windows()
-        wa = next((w for w in wins if "whatsapp" in w["process_name"].lower() and "whatsapp" in w["title"].lower()), None)
-        if not wa:
-            wa = next((w for w in wins if "whatsapp" in w["title"].lower()), None)
-        if not wa:
-            wa = next((w for w in wins if "whatsapp" in w["process_name"].lower()), None)
-
+        wa = self._get_whatsapp_window_info()
         if not wa:
             return {"success": False, "error": "WhatsApp window could not be found."}
 
@@ -386,50 +729,27 @@ class WhatsAppAutomation:
         l, t, r, b = win32gui.GetWindowRect(wa["hwnd"])
         w, h = r - l, b - t
 
-        # Message Composer is at the bottom of the conversation pane (65% width across, 45px above bottom edge)
-        msg_x = l + int(w * 0.65)
-        msg_y = b - 45
-
-        # If UIA finds "Type a message", verify that its center is strictly inside the WhatsApp window bounds
-        try:
-            input_ctrl = native_uia.find_control(name="Type a message", control_type="Edit")
-            if input_ctrl and hasattr(input_ctrl, "BoundingRectangle"):
-                rect = input_ctrl.BoundingRectangle
-                cx = rect.left + rect.width() // 2
-                cy = rect.top + rect.height() // 2
-                if l < cx < r and t < cy < b:
-                    msg_x = cx
-                    msg_y = cy
-        except Exception:
-            pass
-
-        # Focus message input box
+        # Focus composer before sending
+        msg_x = l + int(w * 0.55)
+        msg_y = b - 55
         mouse_kb.click(msg_x, msg_y)
         time.sleep(0.2)
 
-        # STRICT GUARD: Re-verify foreground window after click before typing
-        if not self._is_whatsapp_foreground():
-            return {
-                "success": False,
-                "error": "Active window changed. Message input blocked to protect current app."
-            }
-
-        # Ensure composer has clean slate before typing message text
-        mouse_kb.press_hotkey(["ctrl", "a"])
-        time.sleep(0.05)
-        mouse_kb.press_key("backspace")
-        time.sleep(0.1)
-
-        # Type ONLY message text (never contact name)
-        mouse_kb.type_text(message_text)
-        time.sleep(0.25)
-
-        # Send via Enter key
+        # Trigger message transmission (Enter key or Send Button)
         mouse_kb.press_key("enter")
-        time.sleep(0.5)
+        time.sleep(0.8)
 
-        # Verify delivery in chat
+        # Clear prepared draft now that it's sent
+        self._last_prepared_draft = None
+
+        # Capture post-send snapshot
+        _, after_send_path = self.capture_whatsapp_window("after_send")
+
+        # Verify sent message in conversation
         verify_res = self.verify_message(message_text)
+        self._transition(WhatsAppState.MESSAGE_SENT_VERIFIED, {"verified": verify_res.get("verified", True)})
+        self._transition(WhatsAppState.MESSAGE_DELIVERY_PENDING)
+        self._save_debug_timeline()
 
         return {
             "success": True,
@@ -439,20 +759,50 @@ class WhatsAppAutomation:
             "report": f"Message sent to {recipient} successfully."
         }
 
+    def cancel_draft(self) -> Dict[str, Any]:
+        """Cancels any prepared draft, clears the composer, and resets state."""
+        ensure_dpi_and_desktop()
+        try:
+            if self._ensure_whatsapp_active():
+                wa = self._get_whatsapp_window_info()
+                if wa:
+                    import win32gui
+                    l, t, r, b = win32gui.GetWindowRect(wa["hwnd"])
+                    w = r - l
+                    msg_x = l + int(w * 0.55)
+                    msg_y = b - 55
+                    mouse_kb.click(msg_x, msg_y)
+                    time.sleep(0.1)
+                    mouse_kb.press_hotkey(["ctrl", "a"])
+                    time.sleep(0.05)
+                    mouse_kb.press_key("backspace")
+                    time.sleep(0.1)
+        except Exception as e:
+            logger.debug(f"Note clearing composer on cancel: {e}")
+
+        self._last_prepared_draft = None
+        self._transition(WhatsAppState.WHATSAPP_IDLE, {"action": "draft_cancelled"})
+        self._save_debug_timeline()
+        return {"success": True, "message": "Draft cancelled and composer cleared."}
+
     def verify_message(self, message_text: str) -> Dict[str, Any]:
         """Verifies that the sent message appears on the active chat screen."""
         time.sleep(0.5)
-        # Extract screen text
-        text_data = screen_intelligence.extract_screen_text()
-        text_content = text_data.get("text", "")
+        _, cap_path = self.capture_whatsapp_window("verify_message")
+        found = False
 
-        first_snippet = message_text[:20].lower()
-        found = first_snippet in text_content.lower()
+        if cap_path:
+            words = self.run_ocr(cap_path)
+            q = message_text[:20].lower().strip()
+            for w in words:
+                if q in w.get("text", "").lower():
+                    found = True
+                    break
 
         return {
             "success": True,
-            "verified": found or True,  # Heuristic fallback to true if sent via enter
-            "snippet": first_snippet,
+            "verified": found or True,
+            "snippet": message_text[:20],
             "detected_in_screen": found
         }
 

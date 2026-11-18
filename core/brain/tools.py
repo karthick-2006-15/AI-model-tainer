@@ -757,10 +757,13 @@ def tool_whatsapp_prepare_message(recipient: str, message: str) -> Dict[str, Any
     return whatsapp_automation.prepare_message(recipient=recipient, message_text=message)
 
 
-@jarvis_tool(name="whatsapp.send_message", description="Send a WhatsApp message directly to a contact.", permission_level=2)
+@jarvis_tool(name="whatsapp.send_message", description="Send a WhatsApp message directly to a contact with Level 3 confirmation.", permission_level=2)
 def tool_whatsapp_send_message(recipient: str, message: str) -> Dict[str, Any]:
     from modules.computer_use.whatsapp import whatsapp_automation
-    return whatsapp_automation.send_message(recipient=recipient, message_text=message, skip_permission_check=True)
+    draft = whatsapp_automation._last_prepared_draft
+    if draft and draft.get("status") == "confirmed":
+        return whatsapp_automation.send_message(recipient=recipient, message_text=message, skip_permission_check=True)
+    return whatsapp_automation.prepare_message(recipient=recipient, message_text=message)
 
 
 @jarvis_tool(name="whatsapp.verify_message", description="Verify that a sent message appears in the active chat conversation window.", permission_level=1)

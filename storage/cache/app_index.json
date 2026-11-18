@@ -1,5 +1,5 @@
 {
-  "timestamp": 1795009037.6127944,
+  "timestamp": 1795011982.2689319,
   "count": 345,
   "apps": [
     {
@@ -98,9 +98,10 @@
         "utility"
       ],
       "last_launch_status": {
-        "last_launch": null,
+        "last_launch": 1794922961.3978107,
         "success_count": 0,
-        "failure_count": 0
+        "failure_count": 1,
+        "last_error": "Timeout waiting for window"
       }
     },
     {
@@ -3946,8 +3947,8 @@
         "communication"
       ],
       "last_launch_status": {
-        "last_launch": null,
-        "success_count": 0,
+        "last_launch": 1795011982.2689319,
+        "success_count": 1,
         "failure_count": 0
       }
     },
@@ -7613,12 +7614,12 @@
         "microsoftedgewebview2runtime",
         "msedgewebview2"
       ],
-      "target": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.60\\msedgewebview2.exe",
+      "target": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.46\\msedgewebview2.exe",
       "app_type": "win32",
       "launch_method": "direct_exec",
       "source": "registry",
       "install_location": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application",
-      "executable_path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.60\\msedgewebview2.exe",
+      "executable_path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.46\\msedgewebview2.exe",
       "description": "Installed software (Microsoft Edge WebView2 Runtime)",
       "categories": [
         "browser"
@@ -7995,13 +7996,13 @@
       }
     },
     {
-      "id": "antigravity_2322",
-      "name": "Antigravity 2.32.2",
+      "id": "antigravity_2321",
+      "name": "Antigravity 2.32.1",
       "aliases": [
         "a2",
         "antigravity",
-        "antigravity 2.32.2",
-        "antigravity2.32.2"
+        "antigravity 2.32.1",
+        "antigravity2.32.1"
       ],
       "target": "C:\\Users\\karth\\AppData\\Local\\Programs\\antigravity\\Antigravity.exe",
       "app_type": "win32",
@@ -8009,7 +8010,7 @@
       "source": "registry",
       "install_location": null,
       "executable_path": "C:\\Users\\karth\\AppData\\Local\\Programs\\antigravity\\Antigravity.exe",
-      "description": "Installed software (Antigravity 2.32.2)",
+      "description": "Installed software (Antigravity 2.32.1)",
       "categories": [
         "general"
       ],

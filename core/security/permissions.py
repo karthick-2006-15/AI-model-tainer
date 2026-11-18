@@ -7,6 +7,7 @@ Maintains a tamper-evident SHA-256 audit log chain.
 import hashlib
 import json
 import uuid
+import re
 import logging
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
@@ -94,6 +95,11 @@ class PermissionEngine:
             return None, None
 
         cleaned = user_phrase.lower().strip().strip(" .,!?:;'\"")
+
+        # Guard: If the utterance is a new directed command (e.g. "send hi to Appa", "send message to Dad"),
+        # it is a new instruction, not a confirmation of an existing challenge.
+        if re.search(r"\b(?:send|text|whatsapp)\b.+\bto\s+[a-zA-Z0-9]", cleaned) or re.search(r"\bto\s+[a-zA-Z0-9_]+\s+(?:saying|that)\b", cleaned):
+            return None, None
 
         # Check for confirmation
         if any(term in cleaned.split() or term == cleaned for term in self.CONFIRMATION_PHRASES):

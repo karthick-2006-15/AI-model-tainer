@@ -85,7 +85,7 @@ class BrainOrchestrator:
                     }
             elif approved is False and resolved_ch:
                 from modules.computer_use.whatsapp import whatsapp_automation
-                whatsapp_automation._last_prepared_draft = None
+                whatsapp_automation.cancel_draft()
                 return {
                     "response": "Understood, sir. I have cancelled the operation. No message was sent.",
                     "tool_executed": None,
@@ -343,7 +343,12 @@ class BrainOrchestrator:
             return f"I found the conversation for {result.get('recipient', 'the contact')}. Should I send \"{result.get('message')}\"?"
 
         elif tool_name == "whatsapp.send_message" and isinstance(result, dict):
-            return result.get("report", "Message sent successfully.")
+            if result.get("requires_confirmation") or result.get("status") == "awaiting_authorization":
+                return result.get("confirmation_prompt", f"Found {result.get('recipient')}. Message: '{result.get('message')}'. Shall I send it?")
+            return result.get("report", f"Message sent to {result.get('recipient', 'contact')} successfully.")
+
+        elif tool_name == "whatsapp.open_conversation" and isinstance(result, dict):
+            return result.get("message", f"Opened conversation with {result.get('contact', 'contact')}.")
 
         elif tool_name == "worksheet.extract_questions" and isinstance(result, list):
             return f"I have explored the worksheet and identified {len(result)} questions. Ready to research answers and fill fields, sir."
