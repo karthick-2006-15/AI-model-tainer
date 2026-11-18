@@ -85,7 +85,6 @@ class SpotifyController:
 
     KNOWN_EXECUTABLE_PATHS = [
         os.path.expandvars(r"%APPDATA%\Spotify\Spotify.exe"),
-        r"C:\Users\karth\AppData\Roaming\Spotify\Spotify.exe",
         os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WindowsApps\Spotify.exe"),
         r"C:\Program Files\WindowsApps\SpotifyAB.SpotifyMusic_*\Spotify.exe"
     ]

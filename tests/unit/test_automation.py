@@ -127,3 +127,23 @@ def test_automation_rest_endpoints():
         })
         assert resolve_res.status_code == 200
         assert resolve_res.json()["approved"] is True
+
+
+def test_system_controller():
+    from modules.automation.system import system_controller
+    # Volume adjustment
+    vol_res = system_controller.adjust_volume(action="up", steps=2)
+    assert vol_res["success"] is True
+    assert "up" in vol_res["action"]
+
+    mute_res = system_controller.adjust_volume(action="mute")
+    assert mute_res["success"] is True
+
+    # Shutdown safety verification (unconfirmed must be rejected)
+    unconf_restart = system_controller.restart_system(confirm=False)
+    assert unconf_restart["success"] is False
+    assert unconf_restart["requires_confirmation"] is True
+
+    unconf_shutdown = system_controller.shutdown_system(confirm=False)
+    assert unconf_shutdown["success"] is False
+    assert unconf_shutdown["requires_confirmation"] is True

@@ -381,6 +381,68 @@ class PlaywrightBrowserController:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def detect_bot_challenges(self) -> Dict[str, Any]:
+        """
+        Detects bot verification gates (Cloudflare Turnstile, Google reCAPTCHA, hCaptcha, Arkose).
+        Crucial Safety Rule: Never attempts to solve, click through, or bypass a CAPTCHA.
+        Reports presence to user for human verification.
+        """
+        page = self.current_page
+        try:
+            detected_types = []
+            
+            # 1. Cloudflare Turnstile / Challenge
+            has_cf = page.evaluate("""() => {
+                return !!(
+                    document.querySelector('iframe[src*="challenges.cloudflare.com"]') ||
+                    document.querySelector('#cf-challenge-running') ||
+                    document.querySelector('.cf-turnstile') ||
+                    document.querySelector('[id*="cf-turnstile"]') ||
+                    (document.title && document.title.includes('Just a moment...'))
+                );
+            }""")
+            if has_cf:
+                detected_types.append("Cloudflare Turnstile / Challenge")
+
+            # 2. Google reCAPTCHA
+            has_recaptcha = page.evaluate("""() => {
+                return !!(
+                    document.querySelector('iframe[src*="google.com/recaptcha"]') ||
+                    document.querySelector('iframe[src*="recaptcha.net"]') ||
+                    document.querySelector('.g-recaptcha') ||
+                    document.querySelector('[id*="recaptcha"]')
+                );
+            }""")
+            if has_recaptcha:
+                detected_types.append("Google reCAPTCHA")
+
+            # 3. hCaptcha
+            has_hcaptcha = page.evaluate("""() => {
+                return !!(
+                    document.querySelector('iframe[src*="hcaptcha.com"]') ||
+                    document.querySelector('.h-captcha') ||
+                    document.querySelector('[id*="hcaptcha"]')
+                );
+            }""")
+            if has_hcaptcha:
+                detected_types.append("hCaptcha")
+
+            if detected_types:
+                challenge_name = ", ".join(detected_types)
+                logger.warning(f"Bot verification challenge detected on page '{page.url}': {challenge_name}")
+                return {
+                    "detected": True,
+                    "challenge_types": detected_types,
+                    "url": page.url,
+                    "action_required": "USER_MANUAL_VERIFICATION",
+                    "message": f"A bot verification challenge ({challenge_name}) was detected on this webpage. In accordance with safety policies, automated bypass is prohibited. Please solve the challenge directly in your browser."
+                }
+
+            return {"detected": False, "challenge_types": [], "url": page.url}
+        except Exception as e:
+            logger.debug(f"Error checking bot challenges: {e}")
+            return {"detected": False, "error": str(e), "url": getattr(page, "url", "")}
+
     def close(self):
         """Cleanly closes browser context and stops Playwright."""
         try:

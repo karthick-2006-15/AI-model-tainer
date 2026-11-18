@@ -929,4 +929,58 @@ def tool_avatar_get_status() -> Dict[str, Any]:
     return avatar_engine.get_state()
 
 
+# 10. System Control & Power Management Tools
+@jarvis_tool(name="system.lock_workstation", description="Lock the Windows workstation immediately for security.", permission_level=1)
+def tool_system_lock_workstation() -> Dict[str, Any]:
+    from modules.automation.system import system_controller
+    return system_controller.lock_workstation()
+
+
+@jarvis_tool(name="system.adjust_volume", description="Adjust master audio volume: action ('up', 'down', 'mute', 'unmute'), steps (1-25).", permission_level=1)
+def tool_system_adjust_volume(action: str = "up", steps: int = 5) -> Dict[str, Any]:
+    from modules.automation.system import system_controller
+    return system_controller.adjust_volume(action=action, steps=steps)
+
+
+@jarvis_tool(name="system.power_action", description="Initiate system sleep, restart, or shutdown. Level 3 authorization required.", permission_level=3)
+def tool_system_power_action(action: str, confirm: bool = False) -> Dict[str, Any]:
+    from modules.automation.system import system_controller
+    act = action.lower().strip()
+    if act == "sleep":
+        return system_controller.sleep_system()
+    elif act == "restart":
+        return system_controller.restart_system(confirm=confirm)
+    elif act == "shutdown":
+        return system_controller.shutdown_system(confirm=confirm)
+    elif act == "abort":
+        return system_controller.abort_shutdown()
+    return {"success": False, "error": f"Unknown power action '{action}'. Supported: sleep, restart, shutdown, abort."}
+
+
+# 11. LeetCode & Coding Practice Tools
+@jarvis_tool(name="leetcode.search_problems", description="Search curated LeetCode algorithmic problems by query and optional difficulty.", permission_level=1)
+def tool_leetcode_search_problems(query: str = "", difficulty: str = "") -> List[Dict[str, Any]]:
+    from modules.computer_use.leetcode import leetcode_engine
+    return leetcode_engine.search_problems(query=query, difficulty=difficulty or None)
+
+
+@jarvis_tool(name="leetcode.get_problem", description="Retrieve LeetCode problem description, starter code, and examples.", permission_level=1)
+def tool_leetcode_get_problem(slug_or_id: str) -> Dict[str, Any]:
+    from modules.computer_use.leetcode import leetcode_engine
+    return leetcode_engine.get_problem_details(slug_or_id=slug_or_id)
+
+
+@jarvis_tool(name="leetcode.extract_test_cases", description="Extract structured test cases (inputs and expected outputs) for a LeetCode problem.", permission_level=1)
+def tool_leetcode_extract_test_cases(slug_or_id: str) -> List[Dict[str, Any]]:
+    from modules.computer_use.leetcode import leetcode_engine
+    return leetcode_engine.extract_test_cases(slug_or_id=slug_or_id)
+
+
+@jarvis_tool(name="browser.detect_bot_challenges", description="Detect Cloudflare Turnstile, reCAPTCHA, and hCaptcha bot gates on the active webpage.", permission_level=1)
+def tool_browser_detect_bot_challenges() -> Dict[str, Any]:
+    from modules.computer_use.browser_playwright import playwright_controller
+    return playwright_controller.detect_bot_challenges()
+
+
+
 

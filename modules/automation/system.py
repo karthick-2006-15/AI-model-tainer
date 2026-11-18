@@ -78,3 +78,110 @@ class SystemMonitor:
         # Sort by CPU usage descending
         processes.sort(key=lambda p: p['cpu_percent'], reverse=True)
         return processes[:limit]
+
+
+class SystemController:
+    """Windows system controls: workstation lock, master audio, sleep, and power state."""
+
+    VK_VOLUME_MUTE = 0xAD
+    VK_VOLUME_DOWN = 0xAE
+    VK_VOLUME_UP = 0xAF
+
+    @staticmethod
+    def lock_workstation() -> Dict[str, Any]:
+        """Locks the Windows workstation immediately."""
+        try:
+            import ctypes
+            result = ctypes.windll.user32.LockWorkStation()
+            if result != 0:
+                return {"success": True, "action": "lock_workstation", "message": "Workstation locked successfully."}
+            else:
+                return {"success": False, "error": "LockWorkStation failed."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @classmethod
+    def adjust_volume(cls, action: str = "up", steps: int = 5) -> Dict[str, Any]:
+        """
+        Adjusts master system audio volume.
+        action: 'up', 'down', 'mute', 'unmute'
+        """
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            action_lower = action.lower().strip()
+
+            if action_lower in ("mute", "unmute", "toggle_mute"):
+                user32.keybd_event(cls.VK_VOLUME_MUTE, 0, 0, 0)
+                user32.keybd_event(cls.VK_VOLUME_MUTE, 0, 2, 0)
+                return {"success": True, "action": "mute_toggle", "message": "Master audio mute toggled."}
+
+            vk = cls.VK_VOLUME_UP if "up" in action_lower or "increase" in action_lower else cls.VK_VOLUME_DOWN
+            for _ in range(max(1, min(steps, 25))):
+                user32.keybd_event(vk, 0, 0, 0)
+                user32.keybd_event(vk, 0, 2, 0)
+
+            return {
+                "success": True,
+                "action": f"volume_{'up' if vk == cls.VK_VOLUME_UP else 'down'}",
+                "steps": steps,
+                "message": f"Adjusted volume {action_lower} by {steps} steps."
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    def sleep_system() -> Dict[str, Any]:
+        """Puts the computer into sleep mode."""
+        try:
+            import ctypes
+            # SetSuspendState(Hibernate=False, ForceCritical=False, DisableWakeEvent=False)
+            ctypes.windll.PowrProf.SetSuspendState(0, 0, 0)
+            return {"success": True, "action": "sleep", "message": "System entering sleep mode."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    def restart_system(confirm: bool = False) -> Dict[str, Any]:
+        """Restarts the workstation. Requires explicit confirmation."""
+        if not confirm:
+            return {
+                "success": False,
+                "requires_confirmation": True,
+                "message": "System restart requires explicit authorization. Please confirm to proceed."
+            }
+        try:
+            import subprocess
+            subprocess.run(["shutdown", "/r", "/t", "10", "/c", "JARVIS initiated system restart."], check=False)
+            return {"success": True, "action": "restart", "message": "System restart initiated in 10 seconds."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    def shutdown_system(confirm: bool = False) -> Dict[str, Any]:
+        """Shuts down the workstation. Requires explicit confirmation."""
+        if not confirm:
+            return {
+                "success": False,
+                "requires_confirmation": True,
+                "message": "System shutdown requires explicit authorization. Please confirm to proceed."
+            }
+        try:
+            import subprocess
+            subprocess.run(["shutdown", "/s", "/t", "10", "/c", "JARVIS initiated system shutdown."], check=False)
+            return {"success": True, "action": "shutdown", "message": "System shutdown initiated in 10 seconds."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    def abort_shutdown() -> Dict[str, Any]:
+        """Cancels a pending shutdown or restart."""
+        try:
+            import subprocess
+            subprocess.run(["shutdown", "/a"], check=False)
+            return {"success": True, "action": "abort_shutdown", "message": "Pending shutdown or restart aborted."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+system_controller = SystemController()

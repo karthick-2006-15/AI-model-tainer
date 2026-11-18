@@ -115,7 +115,6 @@ class ApplicationManager:
         ],
         "spotify": [
             os.path.expandvars(r"%APPDATA%\Spotify\Spotify.exe"),
-            r"C:\Users\karth\AppData\Roaming\Spotify\Spotify.exe",
             "spotify:",
             r"shell:AppsFolder\Chrome._crx_pjibgcllelbfgfagdaldikeohf"
         ],
