@@ -567,19 +567,33 @@ class UniversalAppManager:
             return False
 
         try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            try:
+                user32.SystemParametersInfoW(0x2001, 0, 0, 0x0002)  # SPI_SETFOREGROUNDLOCKTIMEOUT
+                user32.AllowSetForegroundWindow(-1)
+            except Exception:
+                pass
+
             curr_thread = win32api.GetCurrentThreadId()
             target_thread, _ = win32process.GetWindowThreadProcessId(target_hwnd)
 
             if curr_thread != target_thread:
                 win32process.AttachThreadInput(curr_thread, target_thread, True)
 
+            # Alt key unlock & TopMost pop
+            user32.keybd_event(0x12, 0, 0, 0)
             win32gui.ShowWindow(target_hwnd, win32con.SW_RESTORE)
             win32gui.BringWindowToTop(target_hwnd)
+            user32.SetWindowPos(target_hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002)
+            user32.SetWindowPos(target_hwnd, -2, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040)
             win32gui.SetForegroundWindow(target_hwnd)
+            user32.keybd_event(0x12, 0, 2, 0)
 
             if curr_thread != target_thread:
                 win32process.AttachThreadInput(curr_thread, target_thread, False)
 
+            time.sleep(0.15)
             return True
         except Exception as e:
             logger.warning(f"Error switching to window {target_hwnd}: {e}")

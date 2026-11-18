@@ -185,6 +185,7 @@ class WhatsAppAutomation:
             time.sleep(0.2)
             mouse_kb.press_key("enter")
             time.sleep(0.5)
+            mouse_kb.press_key("esc")
             self._current_open_contact = contact_name.lower()
             return {
                 "success": True,
@@ -209,29 +210,27 @@ class WhatsAppAutomation:
         if not self._is_whatsapp_foreground():
             return {"success": False, "error": "Active window changed. Search aborted."}
 
-        # Click the Search Box
-        search_x = l + int(w * 0.25)
-        search_y = t + 175
+        # Click the Search Box (located at top left of WhatsApp)
+        search_x = l + int(w * 0.20)
+        search_y = t + 75
         mouse_kb.click(search_x, search_y)
-        time.sleep(0.2)
-
-        # Select all and delete previous query
-        mouse_kb.press_hotkey(["ctrl", "a"])
-        time.sleep(0.1)
-        mouse_kb.press_key("backspace")
         time.sleep(0.15)
 
-        # Type contact name query
-        mouse_kb.type_text(contact_name)
-        time.sleep(0.8)
+        # Select all and delete previous query in search box
+        mouse_kb.press_hotkey(["ctrl", "a"])
+        time.sleep(0.05)
+        mouse_kb.press_key("backspace")
+        time.sleep(0.1)
 
-        # Select first matching result by CLICKING it
-        # CRITICAL SAFETY: Never press Enter here! Pressing Enter would send the contact name if focus was in chat input.
-        # Clicking the search result item safely opens the conversation without risking any message dispatch.
-        first_result_x = l + int(w * 0.25)
-        first_result_y = t + 360
+        # Type contact name query into search field
+        mouse_kb.type_text(contact_name)
+        time.sleep(0.5)
+
+        # Select first matching result by CLICKING it (never press Enter here to prevent accidental sends)
+        first_result_x = l + int(w * 0.20)
+        first_result_y = t + 145
         mouse_kb.click(first_result_x, first_result_y)
-        time.sleep(0.6)
+        time.sleep(0.4)
 
         self._current_open_contact = contact_name.lower()
         return {
@@ -384,7 +383,13 @@ class WhatsAppAutomation:
                 "error": "Active window changed. Message input blocked to protect current app."
             }
 
-        # Type ONLY message text
+        # Ensure composer has clean slate before typing message text
+        mouse_kb.press_hotkey(["ctrl", "a"])
+        time.sleep(0.05)
+        mouse_kb.press_key("backspace")
+        time.sleep(0.1)
+
+        # Type ONLY message text (never contact name)
         mouse_kb.type_text(message_text)
         time.sleep(0.25)
 

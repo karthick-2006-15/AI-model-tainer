@@ -115,7 +115,7 @@ class BrainOrchestrator:
                 }
 
         # 4. Fast-Path Heuristic Tool Execution (Direct microsecond shortcut)
-        if intent.confidence >= 0.9 and intent.target_tool:
+        if intent.confidence >= 0.85 and intent.target_tool:
             tool_meta = tool_registry.get_tool(intent.target_tool)
             if tool_meta and intent.extracted_params is not None:
                 # Direct tool execution
@@ -151,6 +151,19 @@ class BrainOrchestrator:
                 or llm_response.content.startswith("Error:")
             )
         ):
+            # If prompt mapped to an executable tool, execute it directly rather than deflecting
+            if intent.target_tool and intent.extracted_params is not None:
+                exec_result = await tool_registry.execute(intent.target_tool, intent.extracted_params)
+                if exec_result.get("success"):
+                    formatted_response = self._format_fast_result(intent.target_tool, exec_result.get("result"))
+                    return {
+                        "response": formatted_response,
+                        "tool_executed": intent.target_tool,
+                        "tool_result": exec_result.get("result"),
+                        "intent": intent.category.value,
+                        "verified": True
+                    }
+
             fallback_answer = await self._generate_autonomous_fallback(user_input)
             return {
                 "response": fallback_answer,

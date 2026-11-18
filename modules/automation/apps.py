@@ -682,7 +682,7 @@ class ApplicationManager:
 
     @classmethod
     def _force_window_foreground(cls, hwnd: int) -> bool:
-        """Forces a window into the active foreground using thread input attachment and Win32 APIs."""
+        """Forces a window into the active foreground using thread input attachment, TopMost cycling, and Win32 APIs."""
         try:
             import ctypes
             user32 = ctypes.windll.user32
@@ -691,10 +691,16 @@ class ApplicationManager:
             if not user32.IsWindow(hwnd):
                 return False
 
+            # Unlock Windows foreground lock timeout
+            try:
+                user32.SystemParametersInfoW(0x2001, 0, 0, 0x0002)  # SPI_SETFOREGROUNDLOCKTIMEOUT = 0
+                user32.AllowSetForegroundWindow(-1)  # ASFW_ANY
+            except Exception:
+                pass
+
             if user32.IsIconic(hwnd):
                 user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-            else:
-                user32.ShowWindow(hwnd, 5)  # SW_SHOW
+            user32.ShowWindow(hwnd, 5)  # SW_SHOW
 
             fg_hwnd = user32.GetForegroundWindow()
             if fg_hwnd == hwnd:
@@ -711,6 +717,9 @@ class ApplicationManager:
                 # Alt key press trick to unlock Windows foreground lock
                 user32.keybd_event(0x12, 0, 0, 0)
                 user32.BringWindowToTop(hwnd)
+                # Toggle TOPMOST to bring in front of full-screen IDEs/windows
+                user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002)  # HWND_TOPMOST
+                user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040)  # HWND_NOTOPMOST | SWP_SHOWWINDOW
                 user32.SetForegroundWindow(hwnd)
                 user32.SwitchToThisWindow(hwnd, True)
                 user32.keybd_event(0x12, 0, 2, 0)
