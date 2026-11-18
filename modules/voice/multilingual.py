@@ -94,14 +94,28 @@ class MultilingualEngine:
             if m_open:
                 return f"open {m_open.group(1).strip()}", lang
 
-            # Send message: "en father ku Hi message send pannu" -> "send Hi to father"
-            m_msg = re.search(r"(?:en\s+)?([a-zA-Z0-9_\-]+)\s+ku\s+(.+?)\s+(?:message\s+)?(?:send\s+pannu|anuppu|anupu)", c_lower)
+            # Music control: "Anirudh paatu podu" / "Spotify podu" / "song play pannu"
+            if any(w in c_lower for w in ["paatu", "paattu", "song", "spotify"]) and any(w in c_lower for w in ["podu", "play", "vei"]):
+                m_mus = re.search(r"([a-zA-Z0-9_\-\s]+?)\s*(?:paatu|paattu|song|songs)?\s*(?:podu|play\s+pannu|play\s+seiyyi|podunga)", c_lower)
+                query = m_mus.group(1).strip() if m_mus and m_mus.group(1).strip() else "music"
+                if query.lower() in ("spotify", "paatu", "paattu", "song"):
+                    return "open spotify and play music", lang
+                return f"open spotify and play {query}", lang
+
+            if any(w in c_lower for w in ["pause", "niruthu", "stop"]) and any(w in c_lower for w in ["pannu", "pannunga", "paata", "music"]):
+                return "pause the music", lang
+
+            if any(w in c_lower for w in ["resume", "thodar", "continue"]) and any(w in c_lower for w in ["pannu", "pannunga", "paata", "music"]):
+                return "resume the music", lang
+
+            # Send message: "en father ku Hi message send pannu" / "amma ku message anupu" -> "send Hi to father"
+            m_msg = re.search(r"(?:en\s+)?([a-zA-Z0-9_\-]+)\s+ku\s+(?:message\s+)?(.+?)?\s*(?:send\s+pannu|anuppu|anupu)", c_lower)
             if m_msg:
                 recipient = m_msg.group(1).strip()
-                msg = m_msg.group(2).strip()
-                # Clean word 'message' if attached
-                msg = re.sub(r"\bmessage\b", "", msg).strip()
-                return f"send {msg} to {recipient}", lang
+                raw_body = m_msg.group(2) if m_msg.group(2) else ""
+                clean_body = re.sub(r"\bmessage\b", "", raw_body).strip()
+                final_msg = clean_body if clean_body else "hi"
+                return f"send {final_msg} to {recipient}", lang
 
             # YouTube search: "youtube la Java tutorial search pannu" -> "open youtube and search for Java tutorial"
             m_yt = re.search(r"youtube\s+la\s+(.+?)\s+(?:search\s+pannu|search\s+seiyyi|paaru)", c_lower)

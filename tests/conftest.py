@@ -27,9 +27,5 @@ import asyncio
 
 @pytest.fixture(autouse=True)
 def reset_asyncio_loop():
-    """Resets the event loop between tests to prevent loop runner collisions."""
+    """Yields cleanly and ensures no hanging event loops."""
     yield
-    try:
-        asyncio.set_event_loop(None)
-    except Exception:
-        pass

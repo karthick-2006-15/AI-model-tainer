@@ -632,7 +632,7 @@ export function App() {
             </div>
 
             {/* Right Column: Real-Time Telemetry & Chat Command Feed & Music Card */}
-            <div className="col-span-12 lg:col-span-5 flex flex-col space-y-4 overflow-hidden">
+            <div className="col-span-12 lg:col-span-5 flex flex-col space-y-4 overflow-y-auto pr-1">
               {/* Top Right: System Telemetry HUD */}
               <div className="shrink-0">
                 <TelemetryHUD telemetry={telemetry} />
@@ -651,7 +651,7 @@ export function App() {
               </div>
 
               {/* Bottom Right: Real-time Command & Interaction Feed */}
-              <div className="flex-1 min-h-0 overflow-hidden">
+              <div className="flex-1 min-h-[340px] flex flex-col">
                 <ChatFeed 
                   messages={messages} 
                   onSendMessage={handleSendMessage} 

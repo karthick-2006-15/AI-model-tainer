@@ -31,8 +31,15 @@ class BrainOrchestrator:
         """
         logger.info(f"Brain processing instruction: '{user_input}'")
 
-        # 1. Fast Intent Classification & Automatic Memory Extraction
-        intent = intent_classifier.classify(user_input)
+        # 1. Multilingual Normalization (Tamil, Tanglish, Hindi, Hinglish) & Fast Intent Classification
+        from modules.voice.multilingual import multilingual_engine
+        normalized_input, detected_lang = multilingual_engine.normalize_code_switching(user_input)
+        effective_query = normalized_input if (detected_lang != "en" and normalized_input != user_input) else user_input
+
+        intent = intent_classifier.classify(effective_query)
+        if intent.target_tool is None and effective_query != user_input:
+            intent = intent_classifier.classify(user_input)
+
         profile_memory.auto_extract_facts_from_text(user_input)
 
         # 2. Retrieve Relevant Semantic & Profile Memory
