@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Play, 
   Pause, 
@@ -51,6 +51,32 @@ export const TaskManagerHUD: React.FC = () => {
     '[21:42:19] [Word] Written Report_Autonomous_Warehouse_Robots.docx (18.4 KB).',
     '[21:42:22] [PowerPoint] Creating 4 slides: Market, SLAM, Fleet, and ROI.',
   ]);
+
+  useEffect(() => {
+    const fetchLivePlans = async () => {
+      try {
+        const resp = await fetch('/api/tasks');
+        const data = await resp.json();
+        if (data && data.plans && data.plans.length > 0) {
+          const activePlan = data.plans[0];
+          if (activePlan.subtasks && activePlan.subtasks.length > 0) {
+            const mappedTasks: Task[] = activePlan.subtasks.map((st: any) => ({
+              id: st.id,
+              title: st.title || st.tool_name,
+              status: st.status === 'completed' ? 'success' : st.status === 'in_progress' ? 'running' : 'pending',
+              progress: st.status === 'completed' ? 100 : st.status === 'in_progress' ? 50 : 0,
+              application: st.tool_name || 'Central Engine',
+              current_step: st.tool_name
+            }));
+            setTasks(mappedTasks);
+          }
+        }
+      } catch (e) {
+        // Retain default demo workflow on fetch failure
+      }
+    };
+    fetchLivePlans();
+  }, []);
 
   const handlePauseResume = () => {
     setIsPaused(!isPaused);
