@@ -125,3 +125,26 @@ def test_whatsapp_open_conversation_safe_from_enter_key(monkeypatch):
     assert "enter" not in pressed_keys
     # Click must have been used to select search result
     assert mock_click.call_count >= 2  # search box click + first result click
+
+
+def test_whatsapp_intent_routing_direct_send():
+    """Verifies that direct user commands to send messages route to whatsapp.send_message."""
+    from core.brain.intent import intent_classifier
+
+    # Direct send command
+    ic1 = intent_classifier.classify("send hi to Sreedharan")
+    assert ic1.target_tool == "whatsapp.send_message"
+    assert ic1.extracted_params["recipient"] == "Sreedharan"
+    assert ic1.extracted_params["message"] == "hi"
+
+    # Command with 'saying'
+    ic2 = intent_classifier.classify("send a message to my father saying I will come home tomorrow")
+    assert ic2.target_tool == "whatsapp.send_message"
+    assert ic2.extracted_params["recipient"] == "father"
+    assert ic2.extracted_params["message"] == "I will come home tomorrow"
+
+    # Draft / Prepare command
+    ic3 = intent_classifier.classify("prepare message to Sreedharan saying hi")
+    assert ic3.target_tool == "whatsapp.prepare_message"
+    assert ic3.extracted_params["recipient"] == "Sreedharan"
+    assert ic3.extracted_params["message"] == "hi"

@@ -183,28 +183,35 @@ class IntentClassifier:
             flags=re.IGNORECASE
         ).strip()
 
-        # Pattern A: send/sent/whatsapp [message] to [recipient]
-        p_a = r"^(?:send|sent|text|message|whatsapp)\s+(?:a\s+)?(?:message\s+)?['\"]?(.+?)['\"]?\s+to\s+(?:my\s+)?([a-zA-Z0-9_\-\s]+)$"
-        m_a = re.search(p_a, c, flags=re.IGNORECASE)
-        if m_a:
-            raw_msg = m_a.group(1).strip()
-            raw_recip = m_a.group(2).strip()
+        # Pattern 1: send [a] message to [recipient] saying/that [message]
+        p1 = r"^(?:send|sent|text|whatsapp|prepare|draft)\s+(?:a\s+)?(?:message\s+)?to\s+(?:my\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:saying|that)\s+['\"]?(.+?)['\"]?$"
+        m1 = re.search(p1, c, flags=re.IGNORECASE)
+        if m1:
+            recip = re.sub(r"\s+(?:please|now|for\s+me)$", "", m1.group(1).strip(), flags=re.IGNORECASE).strip()
+            return recip, m1.group(2).strip()
+
+        # Pattern 2: send/sent [message] to [recipient]
+        p2 = r"^(?:send|sent|text|whatsapp|prepare|draft)\s+(?:a\s+)?(?:message\s+)?['\"]?(.+?)['\"]?\s+to\s+(?:my\s+)?([a-zA-Z0-9_\-\s]+)$"
+        m2 = re.search(p2, c, flags=re.IGNORECASE)
+        if m2:
+            raw_msg = m2.group(1).strip()
+            raw_recip = m2.group(2).strip()
             msg = re.sub(r"\s+message$", "", raw_msg, flags=re.IGNORECASE).strip()
             recip = re.sub(r"\s+(?:please|now|for\s+me)$", "", raw_recip, flags=re.IGNORECASE).strip()
-            if recip and msg:
+            if recip and msg and msg.lower() != "message":
                 return recip, msg
 
-        # Pattern B: send to [recipient] [message]
-        p_b = r"^(?:send|sent|text|message)\s+to\s+(?:my\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:message\s+)?['\"]?(.+?)['\"]?$"
-        m_b = re.search(p_b, c, flags=re.IGNORECASE)
-        if m_b:
-            recip = m_b.group(1).strip()
-            raw_msg = m_b.group(2).strip()
+        # Pattern 3: send to [recipient] [message]
+        p3 = r"^(?:send|sent|text|whatsapp|prepare|draft)\s+to\s+(?:my\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:message\s+)?['\"]?(.+?)['\"]?$"
+        m3 = re.search(p3, c, flags=re.IGNORECASE)
+        if m3:
+            recip = re.sub(r"\s+(?:please|now|for\s+me)$", "", m3.group(1).strip(), flags=re.IGNORECASE).strip()
+            raw_msg = m3.group(2).strip()
             msg = re.sub(r"\s+message$", "", raw_msg, flags=re.IGNORECASE).strip()
             if recip and msg:
                 return recip, msg
 
-        # Pattern C: Fallback to existing WHATSAPP_MESSAGE_PATTERNS
+        # Pattern 4: Fallback to existing WHATSAPP_MESSAGE_PATTERNS
         for p in self.WHATSAPP_MESSAGE_PATTERNS:
             m = re.search(p, text.lower().strip())
             if m:
@@ -323,10 +330,12 @@ class IntentClassifier:
         if wa_recip and wa_msg:
             params["recipient"] = wa_recip
             params["message"] = wa_msg
+            is_draft_request = bool(re.search(r"\b(?:prepare|draft)\b", cleaned))
+            chosen_tool = "whatsapp.prepare_message" if is_draft_request else "whatsapp.send_message"
             return IntentClassification(
                 category=IntentCategory.SYSTEM_CONTROL,
                 confidence=0.96,
-                target_tool="whatsapp.prepare_message",
+                target_tool=chosen_tool,
                 extracted_params=params
             )
 

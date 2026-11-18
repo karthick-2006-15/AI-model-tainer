@@ -336,8 +336,10 @@ class WhatsAppAutomation:
                 "error": "WhatsApp Desktop is not active. Message transmission aborted to protect other applications."
             }
 
-        # Navigate only if conversation is not already active from preparation step
-        search_target = (self._last_prepared_draft.get("search_query") if self._last_prepared_draft else None) or recipient
+        # Resolve recipient contact and navigate to conversation
+        res_contact = self.resolve_contact(recipient)
+        target_name = res_contact.get("resolved_name", recipient)
+        search_target = (self._last_prepared_draft.get("search_query") if self._last_prepared_draft else None) or target_name
         if not self._current_open_contact or self._current_open_contact.lower() != search_target.lower():
             nav_res = self.open_conversation(search_target)
             if not nav_res.get("success"):
