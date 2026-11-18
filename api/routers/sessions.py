@@ -82,3 +82,14 @@ def send_message(session_id: str, request: SendMessageRequest, db: DbSession = D
     db.commit()
     db.refresh(user_msg)
     return user_msg
+
+
+@router.delete("/{session_id}")
+def delete_session(session_id: str, db: DbSession = Depends(get_db)):
+    """Deletes a conversation session and all its messages."""
+    session = db.query(Session).filter(Session.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    db.delete(session)
+    db.commit()
+    return {"success": True, "message": f"Session '{session_id}' deleted successfully."}

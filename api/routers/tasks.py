@@ -58,3 +58,12 @@ async def get_plan_status(plan_id: str):
 async def list_active_plans():
     """Lists all active and recent execution plans."""
     return {"plans": dag_executor.list_plans()}
+
+
+@router.delete("/{plan_id}")
+async def delete_plan(plan_id: str):
+    """Deletes an execution plan and its subtasks from memory and SQLite database."""
+    deleted = dag_executor.delete_plan(plan_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Plan '{plan_id}' not found.")
+    return {"success": True, "message": f"Plan '{plan_id}' deleted successfully."}

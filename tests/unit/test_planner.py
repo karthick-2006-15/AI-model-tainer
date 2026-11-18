@@ -169,3 +169,58 @@ def test_planning_tools_registered_in_brain():
     assert plan_tool is not None
     assert exec_tool is not None
     assert exec_tool.permission_level == 2
+
+
+@pytest.mark.asyncio
+async def test_dag_persistence_and_sqlite_recovery():
+    """Verifies that PlanDAGs persist to SQLite and survive in-memory cache clearing."""
+    dag = PlanDAG(goal="Persistent SQLite Plan Test")
+    dag.add_subtask(SubTask(id="sub_1", description="Persistent step 1", tool_name="get_system_telemetry"))
+    
+    executed = await dag_executor.execute_plan(dag)
+    assert executed.status == TaskStatus.SUCCESS
+    plan_id = executed.plan_id
+
+    # Simulate application restart: purge in-memory cache
+    dag_executor._active_plans.clear()
+    assert plan_id not in dag_executor._active_plans
+
+    # Verify plan is restored from SQLite
+    recovered = dag_executor.get_plan(plan_id)
+    assert recovered is not None
+    assert recovered.plan_id == plan_id
+    assert recovered.goal == "Persistent SQLite Plan Test"
+    assert recovered.status == TaskStatus.SUCCESS
+    assert "sub_1" in recovered.subtasks
+
+    # Verify plan deletion removes it from SQLite and memory
+    del_res = client.delete(f"/api/tasks/{plan_id}")
+    assert del_res.status_code == 200
+    assert del_res.json()["success"] is True
+
+    # Ensure it no longer exists
+    assert dag_executor.get_plan(plan_id) is None
+
+
+def test_session_deletion_cascade():
+    """Verifies that DELETE /api/sessions/{id} removes the session and cascades to messages."""
+    # 1. Create a session
+    res = client.post("/api/sessions", json={"title": "Temporary Test Session"})
+    assert res.status_code == 200
+    session_id = res.json()["id"]
+
+    # 2. Add message to session
+    msg_res = client.post(f"/api/sessions/{session_id}/messages", json={"content": "Hello in temp session"})
+    assert msg_res.status_code == 200
+
+    # 3. Delete session
+    del_res = client.delete(f"/api/sessions/{session_id}")
+    assert del_res.status_code == 200
+    assert del_res.json()["success"] is True
+
+    # 4. Verify session not found
+    get_msgs = client.get(f"/api/sessions/{session_id}/messages")
+    assert len(get_msgs.json()) == 0
+
+    del_again = client.delete(f"/api/sessions/{session_id}")
+    assert del_again.status_code == 404
