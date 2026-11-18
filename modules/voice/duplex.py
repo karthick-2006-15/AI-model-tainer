@@ -35,16 +35,31 @@ class DuplexController:
                     cb()
                 except Exception as e:
                     logger.warning(f"Error in interruption callback: {e}")
+            try:
+                from modules.voice.state_machine import voice_state_machine, VoiceState
+                voice_state_machine.transition_to(VoiceState.INTERRUPTED, reason)
+            except Exception:
+                pass
 
     def notify_speech_started(self):
         """Called when TTS playback begins."""
         self.is_speaking = True
         self._interrupt_event.clear()
+        try:
+            from modules.voice.state_machine import voice_state_machine, VoiceState
+            voice_state_machine.transition_to(VoiceState.SPEAKING, "Vocalizing speech")
+        except Exception:
+            pass
 
     def notify_speech_finished(self):
         """Called when TTS playback finishes naturally."""
         self.is_speaking = False
         self._interrupt_event.clear()
+        try:
+            from modules.voice.state_machine import voice_state_machine, VoiceState
+            voice_state_machine.transition_to(VoiceState.IDLE, "Speech completed")
+        except Exception:
+            pass
 
     def process_incoming_audio_frame(self, pcm_bytes: bytes) -> bool:
         """

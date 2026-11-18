@@ -123,3 +123,48 @@ def test_voice_listener_registration():
     called = []
     vl.register_command_callback(lambda cmd, resp: called.append((cmd, resp)))
     assert len(vl.on_command_callbacks) == 1
+
+
+def test_voice_state_machine():
+    from modules.voice.state_machine import VoiceStateMachine, VoiceState
+    sm = VoiceStateMachine()
+    assert sm.current_state == VoiceState.IDLE
+
+    history = []
+    sm.register_listener(lambda s, r: history.append((s, r)))
+
+    sm.transition_to(VoiceState.LISTENING, "User spoke wake word")
+    assert sm.current_state == VoiceState.LISTENING
+
+    sm.transition_to(VoiceState.PROCESSING, "STT running")
+    assert sm.current_state == VoiceState.PROCESSING
+
+    sm.transition_to(VoiceState.THINKING, "LLM reasoning")
+    assert sm.current_state == VoiceState.THINKING
+
+    sm.transition_to(VoiceState.SPEAKING, "Playing audio")
+    assert sm.current_state == VoiceState.SPEAKING
+
+    sm.transition_to(VoiceState.INTERRUPTED, "User interrupted")
+    assert sm.current_state == VoiceState.INTERRUPTED
+
+    sm.transition_to(VoiceState.ERROR, "Microphone disconnected")
+    assert sm.current_state == VoiceState.ERROR
+
+    sm.reset()
+    assert sm.current_state == VoiceState.IDLE
+    assert len(history) == 7
+
+
+def test_duplex_state_machine_integration():
+    from modules.voice.state_machine import voice_state_machine, VoiceState
+    from modules.voice.duplex import duplex_controller
+
+    duplex_controller.notify_speech_started()
+    assert voice_state_machine.current_state == VoiceState.SPEAKING
+
+    duplex_controller.trigger_interruption("Barge-in test")
+    assert voice_state_machine.current_state == VoiceState.INTERRUPTED
+
+    duplex_controller.notify_speech_finished()
+    assert voice_state_machine.current_state == VoiceState.IDLE

@@ -15,6 +15,7 @@ from modules.voice.wakeword import wakeword_detector
 from modules.voice.tts import tts_engine
 from modules.voice.multilingual import multilingual_engine
 from modules.voice.conversation import conversation_manager
+from modules.voice.state_machine import voice_state_machine, VoiceState
 from core.brain.orchestrator import brain_orchestrator
 from modules.computer_use.whatsapp import whatsapp_automation
 
@@ -80,23 +81,28 @@ class VoiceListener:
                     while self._running:
                         try:
                             # Listen for speech phrase
+                            voice_state_machine.transition_to(VoiceState.IDLE, "Waiting for wake phrase or speech")
                             audio = self._recognizer.listen(
                                 source,
                                 timeout=None,
                                 phrase_time_limit=7
                             )
+                            voice_state_machine.transition_to(VoiceState.PROCESSING, "Transcribing speech")
 
                             transcript = ""
                             try:
                                 transcript = self._recognizer.recognize_google(audio, language=self.language)
                             except sr.UnknownValueError:
+                                voice_state_machine.transition_to(VoiceState.IDLE)
                                 continue
                             except sr.RequestError as e:
                                 logger.warning(f"Google STT service temporarily unreachable: {e}")
+                                voice_state_machine.transition_to(VoiceState.ERROR, f"STT unreachable: {e}")
                                 time.sleep(1.0)
                                 continue
 
                             if not transcript:
+                                voice_state_machine.transition_to(VoiceState.IDLE)
                                 continue
 
                             logger.info(f"Heard audio transcript: '{transcript}'")
@@ -170,6 +176,7 @@ class VoiceListener:
         """Dispatches command to Brain Orchestrator, formats concise reply, and vocalizes in user's language."""
         try:
             logger.info(f"Dispatching voice command: '{command_text}' (lang={lang})")
+            voice_state_machine.transition_to(VoiceState.THINKING, f"Analyzing: {command_text}")
             if not self._event_loop:
                 self._event_loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self._event_loop)
@@ -206,13 +213,16 @@ class VoiceListener:
             localized_response = multilingual_engine.localize_response(raw_response, lang)
 
             # Vocalize response
+            voice_state_machine.transition_to(VoiceState.SPEAKING, "Vocalizing response")
             tts_engine.speak(localized_response)
 
             # Broadcast to HUD
             self._notify_callbacks(original_query or command_text, localized_response)
+            voice_state_machine.transition_to(VoiceState.IDLE, "Standing by")
 
         except Exception as e:
             logger.error(f"Error executing voice command: {e}")
+            voice_state_machine.transition_to(VoiceState.ERROR, str(e))
             err_msg = multilingual_engine.localize_response("I encountered an error executing that request, sir.", lang)
             tts_engine.speak(err_msg)
 

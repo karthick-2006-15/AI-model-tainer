@@ -11,6 +11,7 @@ import logging
 from modules.automation.system import SystemMonitor
 from core.brain.orchestrator import brain_orchestrator
 from modules.voice.tts import tts_engine
+from modules.voice.state_machine import voice_state_machine, VoiceState
 from modules.avatar.avatar_engine import avatar_engine
 from storage.db.connection import SessionLocal
 from storage.db.models import Session, Message
@@ -47,15 +48,30 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+async def _broadcast_voice_state(state, reason):
+    await manager.broadcast({
+        "type": "voice_state",
+        "state": state.value if hasattr(state, "value") else str(state),
+        "reason": reason
+    })
+
+voice_state_machine.register_async_listener(_broadcast_voice_state)
+
+
 @router.websocket("/ws/hud")
 async def hud_websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     
-    # Send initial welcome state and avatar state
+    # Send initial welcome state, voice state, and avatar state
     await websocket.send_json({
         "type": "agent_state",
         "state": "idle",
         "message": "JARVIS Core Online. All subsystems operational."
+    })
+    await websocket.send_json({
+        "type": "voice_state",
+        "state": voice_state_machine.current_state.value,
+        "reason": "HUD initial connection"
     })
     await websocket.send_json({
         "type": "avatar_state",
@@ -94,6 +110,7 @@ async def hud_websocket_endpoint(websocket: WebSocket):
                     text = payload.get("text", "").strip()
                     if text:
                         # 1. Update agent status & avatar to thinking
+                        voice_state_machine.transition_to(VoiceState.THINKING, f"Analyzing: {text}")
                         avatar_engine.set_state("thinking", f"Analyzing: {text}")
                         await manager.broadcast({
                             "type": "agent_state",
@@ -184,6 +201,7 @@ async def hud_websocket_endpoint(websocket: WebSocket):
                             await asyncio.sleep(0.4)
 
                         # 3. Stream back final response chunk and vocalize (speaking state)
+                        voice_state_machine.transition_to(VoiceState.SPEAKING, "Vocalizing response")
                         avatar_engine.set_state("speaking", "Vocalizing response.")
                         await manager.broadcast({
                             "type": "agent_state",
@@ -206,6 +224,7 @@ async def hud_websocket_endpoint(websocket: WebSocket):
 
                         # Short delay before resetting to idle, or client will notify when speech synthesis finishes
                         await asyncio.sleep(1.0)
+                        voice_state_machine.transition_to(VoiceState.IDLE, "Standing by")
                         avatar_engine.set_state("idle", "Standing by.")
                         await manager.broadcast({
                             "type": "agent_state",
@@ -247,6 +266,7 @@ async def hud_websocket_endpoint(websocket: WebSocket):
 
                 elif msg_type == "abort_task":
                     tts_engine.stop()
+                    voice_state_machine.transition_to(VoiceState.INTERRUPTED, "Emergency abort triggered")
                     avatar_engine.set_state("error", "Emergency abort triggered.")
                     await manager.broadcast({
                         "type": "agent_state",
