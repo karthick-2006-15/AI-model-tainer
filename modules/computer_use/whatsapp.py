@@ -47,7 +47,7 @@ class WhatsAppAutomation:
             title = win32gui.GetWindowText(fg_hwnd)
             _, pid = win32process.GetWindowThreadProcessId(fg_hwnd)
             pname = psutil.Process(pid).name().lower() if pid else ""
-            if "whatsapp" in pname or title.lower() == "whatsapp":
+            if "whatsapp" in pname or "whatsapp" in title.lower():
                 return True
             return False
         except Exception:
@@ -172,34 +172,14 @@ class WhatsAppAutomation:
         mouse_kb.press_key("esc")
         time.sleep(0.15)
 
-        # 3. Try UI Automation search first
-        search_box = native_uia.find_control(name="Search or start new chat", control_type="Edit")
-        if not search_box:
-            search_box = native_uia.find_control(name="Search", control_type="Edit")
-
-        if search_box:
-            search_box.SetFocus()
-            native_uia.type_into_element(text=contact_name, clear_first=True)
-            time.sleep(0.5)
-            mouse_kb.press_key("down")
-            time.sleep(0.2)
-            mouse_kb.press_key("enter")
-            time.sleep(0.5)
-            mouse_kb.press_key("esc")
-            self._current_open_contact = contact_name.lower()
-            return {
-                "success": True,
-                "contact": contact_name,
-                "method": "UIA_search",
-                "message": f"Opened conversation with '{contact_name}'."
-            }
-
-        # 4. Reliable Direct Search & Click Navigation
+        # 3. Locate WhatsApp window dimensions
         import win32gui
         wins = ApplicationManager.list_open_windows()
-        wa = next((w for w in wins if "whatsapp" in w["process_name"].lower() and w["title"].lower() == "whatsapp"), None)
+        wa = next((w for w in wins if "whatsapp" in w["process_name"].lower() and "whatsapp" in w["title"].lower()), None)
         if not wa:
             wa = next((w for w in wins if "whatsapp" in w["title"].lower()), None)
+        if not wa:
+            wa = next((w for w in wins if "whatsapp" in w["process_name"].lower()), None)
         if not wa:
             return {"success": False, "error": "WhatsApp window could not be found."}
 
@@ -210,9 +190,27 @@ class WhatsAppAutomation:
         if not self._is_whatsapp_foreground():
             return {"success": False, "error": "Active window changed. Search aborted."}
 
-        # Click the Search Box (located at top left of WhatsApp)
-        search_x = l + int(w * 0.20)
-        search_y = t + 75
+        # 4. Calibrated Search Box and Result Offsets
+        # In WhatsApp Desktop:
+        # - Header "Chats" is at t + 70 (clicking here selects the text label, not the search box)
+        # - Search box ("Search or start a new chat") is at t + 127, centered horizontally at l + min(max(int(w * 0.22), 200), 280)
+        # - Filtered first contact result is at t + 230
+        search_x = l + min(max(int(w * 0.22), 200), 280)
+        search_y = t + 127
+
+        try:
+            for s_name in ("Search or start a new chat", "Search or start new chat", "Search"):
+                ctrl = native_uia.find_control(name=s_name, control_type="Edit")
+                if ctrl and hasattr(ctrl, "BoundingRectangle"):
+                    rect = ctrl.BoundingRectangle
+                    if rect.width() > 50 and rect.height() > 15:
+                        search_x = rect.left + rect.width() // 2
+                        search_y = rect.top + rect.height() // 2
+                        break
+        except Exception as e:
+            logger.debug(f"UIA search box detection note: {e}")
+
+        # Focus Search Box
         mouse_kb.click(search_x, search_y)
         time.sleep(0.15)
 
@@ -224,11 +222,11 @@ class WhatsAppAutomation:
 
         # Type contact name query into search field
         mouse_kb.type_text(contact_name)
-        time.sleep(0.5)
+        time.sleep(0.6)
 
         # Select first matching result by CLICKING it (never press Enter here to prevent accidental sends)
-        first_result_x = l + int(w * 0.20)
-        first_result_y = t + 145
+        first_result_x = search_x
+        first_result_y = t + 230
         mouse_kb.click(first_result_x, first_result_y)
         time.sleep(0.4)
 
@@ -357,16 +355,23 @@ class WhatsAppAutomation:
 
         # Focus message input box and type ONLY the message text
         time.sleep(0.3)
-        input_ctrl = native_uia.find_control(name="Type a message", control_type="Edit")
+        input_ctrl = None
+        try:
+            input_ctrl = native_uia.find_control(name="Type a message", control_type="Edit")
+        except Exception:
+            input_ctrl = None
+
         if input_ctrl:
             input_ctrl.SetFocus()
             native_uia.type_into_element(message_text)
         else:
             # Focus chat input at bottom of right pane
             wins = ApplicationManager.list_open_windows()
-            wa = next((w for w in wins if "whatsapp" in w["process_name"].lower() and w["title"].lower() == "whatsapp"), None)
+            wa = next((w for w in wins if "whatsapp" in w["process_name"].lower() and "whatsapp" in w["title"].lower()), None)
             if not wa:
                 wa = next((w for w in wins if "whatsapp" in w["title"].lower()), None)
+            if not wa:
+                wa = next((w for w in wins if "whatsapp" in w["process_name"].lower()), None)
             if wa:
                 import win32gui
                 l, t, r, b = win32gui.GetWindowRect(wa["hwnd"])

@@ -678,6 +678,35 @@ class ApplicationManager:
         except Exception as e:
             logger.warning(f"Error enumerating windows: {e}")
 
+        # Fallback to win32gui if user32 enumeration produced no results
+        if not windows and PYWIN32_AVAILABLE:
+            try:
+                import win32gui
+                import win32process
+                def pywin_cb(hwnd, extra):
+                    try:
+                        if win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
+                            t = win32gui.GetWindowText(hwnd).strip()
+                            if t and t not in ("Default IME", "MSCTFIME UI", "Program Manager"):
+                                _, p = win32process.GetWindowThreadProcessId(hwnd)
+                                try:
+                                    pn = psutil.Process(p).name()
+                                except Exception:
+                                    pn = "unknown"
+                                windows.append({
+                                    "hwnd": hwnd,
+                                    "title": t,
+                                    "pid": p,
+                                    "process_name": pn,
+                                    "is_visible": True
+                                })
+                    except Exception:
+                        pass
+                    return True
+                win32gui.EnumWindows(pywin_cb, None)
+            except Exception as e:
+                logger.warning(f"Fallback window enumeration error: {e}")
+
         return windows
 
     @classmethod
