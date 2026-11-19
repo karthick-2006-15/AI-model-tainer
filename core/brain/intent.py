@@ -165,6 +165,9 @@ class IntentClassifier:
     def _parse_whatsapp_instruction(self, text: str) -> Tuple[Optional[str], Optional[str]]:
         """Extracts recipient and message cleanly from natural WhatsApp commands."""
         c = text.strip()
+        # 0. Strip trailing punctuation (. ! ?)
+        c = re.sub(r"[\.!\?]+$", "", c).strip()
+
         # 1. Strip trailing conversation modifiers or auxiliary clauses like:
         # "it have to sent message to app", "in whatsapp", "on whatsapp", "please"
         c = re.sub(
@@ -173,22 +176,34 @@ class IntentClassifier:
             c,
             flags=re.IGNORECASE
         ).strip()
+        c = re.sub(r"[\.!\?]+$", "", c).strip()
 
         # 2. Strip leading wake-words and app-open prefixes
-        # e.g. "hey jarvis, open whatsapp and ...", "open whatsapp and ..."
+        # e.g. "hey jarvis, open whatsapp and ...", "jarvis, send hi to appa", "open whatsapp and ..."
         c = re.sub(
-            r"^(?:hey\s+jarvis\s*[,:]?\s*)?(?:open\s+whatsapp\s+(?:and\s+|,?\s*))?",
+            r"^(?:(?:hey\s+)?jarvis\s*[,:]?\s*)?(?:open\s+whatsapp\s+(?:and\s+|,?\s*))?",
             "",
             c,
             flags=re.IGNORECASE
         ).strip()
 
+        def _clean_param(s: Optional[str]) -> Optional[str]:
+            if not s:
+                return None
+            val = s.strip()
+            val = re.sub(r"\s+(?:please|now|for\s+me)$", "", val, flags=re.IGNORECASE).strip()
+            val = re.sub(r"^['\"]|['\"]$", "", val).strip()
+            val = re.sub(r"[\.!\?]+$", "", val).strip()
+            return val
+
         # Pattern 1: send [a] message to [recipient] saying/that [message]
         p1 = r"^(?:send|sent|text|whatsapp|prepare|draft)\s+(?:a\s+)?(?:message\s+)?to\s+(?:my\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:saying|that)\s+['\"]?(.+?)['\"]?$"
         m1 = re.search(p1, c, flags=re.IGNORECASE)
         if m1:
-            recip = re.sub(r"\s+(?:please|now|for\s+me)$", "", m1.group(1).strip(), flags=re.IGNORECASE).strip()
-            return recip, m1.group(2).strip()
+            recip = _clean_param(m1.group(1))
+            msg = _clean_param(m1.group(2))
+            if recip and msg:
+                return recip, msg
 
         # Pattern 2: send/sent [message] to [recipient]
         p2 = r"^(?:send|sent|text|whatsapp|prepare|draft)\s+(?:a\s+)?(?:message\s+)?['\"]?(.+?)['\"]?\s+to\s+(?:my\s+)?([a-zA-Z0-9_\-\s]+)$"
@@ -196,8 +211,9 @@ class IntentClassifier:
         if m2:
             raw_msg = m2.group(1).strip()
             raw_recip = m2.group(2).strip()
-            msg = re.sub(r"\s+message$", "", raw_msg, flags=re.IGNORECASE).strip()
-            recip = re.sub(r"\s+(?:please|now|for\s+me)$", "", raw_recip, flags=re.IGNORECASE).strip()
+            clean_m = re.sub(r"\s+message$", "", raw_msg, flags=re.IGNORECASE).strip()
+            recip = _clean_param(raw_recip)
+            msg = _clean_param(clean_m)
             if recip and msg and msg.lower() != "message":
                 return recip, msg
 
@@ -205,23 +221,37 @@ class IntentClassifier:
         p3 = r"^(?:send|sent|text|whatsapp|prepare|draft)\s+to\s+(?:my\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:message\s+)?['\"]?(.+?)['\"]?$"
         m3 = re.search(p3, c, flags=re.IGNORECASE)
         if m3:
-            recip = re.sub(r"\s+(?:please|now|for\s+me)$", "", m3.group(1).strip(), flags=re.IGNORECASE).strip()
+            recip = _clean_param(m3.group(1))
             raw_msg = m3.group(2).strip()
-            msg = re.sub(r"\s+message$", "", raw_msg, flags=re.IGNORECASE).strip()
+            clean_m = re.sub(r"\s+message$", "", raw_msg, flags=re.IGNORECASE).strip()
+            msg = _clean_param(clean_m)
             if recip and msg:
                 return recip, msg
 
-        # Pattern 4: Fallback to existing WHATSAPP_MESSAGE_PATTERNS
+        # Pattern 4: Tanglish code-switching: [recipient] ku [message] anupu / send pannu
+        p4 = r"^(?:en\s+)?([a-zA-Z0-9_\-]+)\s+ku\s+(?:message\s+)?(.+?)?\s*(?:send\s+pannu|anuppu|anupu)$"
+        m4 = re.search(p4, c, flags=re.IGNORECASE)
+        if m4:
+            recip = _clean_param(m4.group(1))
+            raw_body = m4.group(2) if m4.group(2) else ""
+            clean_body = re.sub(r"\bmessage\b", "", raw_body, flags=re.IGNORECASE).strip()
+            msg = _clean_param(clean_body) if clean_body else "hi"
+            if recip and msg:
+                return recip, msg
+
+        # Pattern 5: Fallback to existing WHATSAPP_MESSAGE_PATTERNS
         for p in self.WHATSAPP_MESSAGE_PATTERNS:
-            m = re.search(p, text.lower().strip())
+            m = re.search(p, c, flags=re.IGNORECASE)
             if m:
                 msg = m.group(1).strip()
                 recip = m.group(2).strip()
-                if "send to" in text.lower():
+                if "send to" in c.lower():
                     recip, msg = m.group(1).strip(), m.group(2).strip()
                 msg = re.sub(r"^(?:and\s+)?(?:send|sent)\s+", "", msg).strip()
-                recip = re.sub(r"\s+(?:please|now|for\s+me)$", "", recip).strip()
-                return recip, msg
+                recip = _clean_param(recip)
+                msg = _clean_param(msg)
+                if recip and msg:
+                    return recip, msg
 
         return None, None
 
